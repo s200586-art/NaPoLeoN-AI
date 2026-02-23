@@ -49,9 +49,9 @@ body {
   border: 1px solid transparent;
   color: var(--text-primary);
   font-size: 14px;
-  transition: all .14s ease;
+  transition: all .16s ease;
 }
-.nav-item:hover { background: #ffffff10; border-color: #ffffff16; }
+.nav-item:hover { background: #ffffff10; border-color: #ffffff16; transform: translateY(-1px); }
 .nav-item.active { background: #ffffff1b; border-color: #ffffff24; }
 
 .msg-ai { line-height: 1.78; font-size: 16px; letter-spacing: 0.01em; }
@@ -68,7 +68,29 @@ body {
   background: var(--bg-input);
   border-radius: 22px;
   box-shadow: 0 10px 36px rgba(0,0,0,.22);
+  transition: border-color .15s ease, box-shadow .2s ease;
 }
+.composer:focus-within {
+  border-color: #7a7d87;
+  box-shadow: 0 14px 42px rgba(0,0,0,.28);
+}
+
+.fade-in {
+  animation: fadeIn .18s ease-out;
+}
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(4px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.msg-ai pre {
+  border: 1px solid var(--border);
+  background: #00000022;
+  border-radius: 12px;
+  padding: 12px;
+  overflow: auto;
+}
+.msg-ai code { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 13px; }
 
 .chip {
   font-size: 12px;

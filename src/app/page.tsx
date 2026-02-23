@@ -101,7 +101,7 @@ export default function Home() {
             )}
 
             {messages.map((m, i) => (
-              <div key={i} className={`flex gap-3 ${m.role === "user" ? "justify-end" : "justify-start"}`}>
+              <div key={i} className={`fade-in flex gap-3 ${m.role === "user" ? "justify-end" : "justify-start"}`}>
                 {m.role === "assistant" && <Logo />}
                 <div className={m.role === "assistant" ? "msg-ai max-w-[88%]" : "msg-user max-w-[75%]"}>{m.text}</div>
               </div>
@@ -141,7 +141,7 @@ export default function Home() {
                 <button
                   onClick={send}
                   disabled={!input.trim() || loading}
-                  className="h-10 px-4 rounded-xl bg-[var(--accent)] text-[var(--bg-app)] font-semibold disabled:opacity-40"
+                  className="h-10 px-4 rounded-xl bg-[var(--accent)] text-[var(--bg-app)] font-semibold disabled:opacity-40 hover:opacity-90 transition"
                 >
                   Send
                 </button>
