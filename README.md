@@ -1,4 +1,4 @@
-# NaPoLeoN Command Center
+# NaPoLeoN Command Center.
 
 Импортированная версия интерфейса из MiniMax (Nexus) с русской локализацией UI.
 
