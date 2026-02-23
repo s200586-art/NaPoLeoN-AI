@@ -30,7 +30,6 @@ export function ChatCanvas({ className }: ChatCanvasProps) {
   }, [activeChat?.messages])
 
   const handleSend = async (content: string) => {
-    // Create or get active chat
     let chat = activeChat
     if (!chat) {
       chat = {
@@ -43,7 +42,6 @@ export function ChatCanvas({ className }: ChatCanvasProps) {
       addChat(chat)
     }
 
-    // Add user message
     const userMessage: Message = {
       id: Math.random().toString(36).slice(2),
       role: 'user',
@@ -52,14 +50,10 @@ export function ChatCanvas({ className }: ChatCanvasProps) {
     }
     addMessage(chat.id, userMessage)
 
-    // Add system log
     addLog({ level: 'info', message: `Отправлено сообщение: "${content.slice(0, 50)}..."` })
-
-    // Simulate AI response
     setIsTyping(true)
-    addLog({ level: 'info', message: 'Обрабатываю запрос...' })
+    addLog({ level: 'info', message: 'Отправляю запрос в OpenClaw...' })
 
-    // Create streaming message
     const assistantMessageId = Math.random().toString(36).slice(2)
     const assistantMessage: Message = {
       id: assistantMessageId,
@@ -70,37 +64,32 @@ export function ChatCanvas({ className }: ChatCanvasProps) {
     }
     addMessage(chat.id, assistantMessage)
 
-    // Simulate streaming response
-    const fullResponse = `Принял сообщение: "${content}"
+    try {
+      const history = [...(chat.messages || []), userMessage]
+        .slice(-12)
+        .map((m) => ({ role: m.role, content: m.content }))
 
-Вот чем я могу помочь:
+      const res = await fetch('/api/chat', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ messages: history }),
+      })
 
-1. **Поиск и сводка информации** — быстро соберу и структурирую данные.
-2. **Код и автоматизация** — напишу, проверю и объясню решение.
-3. **Аналитика** — помогу с разбором метрик и выводами.
-4. **Планирование** — разложу задачу на конкретные шаги.
+      const data = await res.json()
+      if (!res.ok) {
+        throw new Error(data?.error || 'Ошибка запроса к OpenClaw')
+      }
 
-Если хочешь, начну с короткого плана действий прямо сейчас.`
-
-    await new Promise(resolve => setTimeout(resolve, 500))
-    addLog({ level: 'success', message: 'Ответ успешно сформирован' })
-
-    // Stream the response character by character
-    for (let i = 0; i < fullResponse.length; i++) {
-      await new Promise(resolve => setTimeout(resolve, 15))
-      updateMessage(chat.id, assistantMessageId, fullResponse.slice(0, i + 1))
+      const fullResponse = data?.answer || 'Пустой ответ от OpenClaw.'
+      updateMessage(chat.id, assistantMessageId, fullResponse)
+      addLog({ level: 'success', message: 'Ответ получен от OpenClaw' })
+    } catch (e) {
+      const errText = e instanceof Error ? e.message : 'Неизвестная ошибка'
+      updateMessage(chat.id, assistantMessageId, `Ошибка: ${errText}`)
+      addLog({ level: 'error', message: `Ошибка OpenClaw: ${errText}` })
+    } finally {
+      setIsTyping(false)
     }
-
-    // Mark as complete
-    const finalMessage: Message = {
-      id: assistantMessageId,
-      role: 'assistant',
-      content: fullResponse,
-      timestamp: new Date(),
-      isStreaming: false,
-    }
-    updateMessage(chat.id, assistantMessageId, fullResponse)
-    setIsTyping(false)
   }
 
   if (!activeChat || activeChat.messages.length === 0) {
