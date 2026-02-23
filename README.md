@@ -1,6 +1,6 @@
 # AI Command Center (MVP)
 
-Веб-панель в стиле ChatGPT + Manus + Claude + OpenClaw .
+Веб-панель в стиле ChatGPT + Manus + Claude + OpenClaw.
 
 ## Что есть
 - 3-колоночный layout: Sidebar / Chat / Live Log
