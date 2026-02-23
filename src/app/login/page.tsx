@@ -12,7 +12,7 @@ export default function LoginPage() {
     e.preventDefault();
     if (!token.trim()) return;
 
-    document.cookie = `acc_token=${encodeURIComponent(token.trim())}; path=/; max-age=604800; samesite=lax`;
+    document.cookie = `acc_token=${encodeURIComponent(token.trim())}; path=/; max-age=604800; samesite=lax; secure`;
     setError("");
     router.push("/");
   };
