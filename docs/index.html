@@ -1,0 +1,63 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>NaPoLeoN AI — Preview</title>
+  <style>
+    :root{--bg:#0b1020;--panel:#121a2d;--text:#e7edf7;--muted:#9fb0cc;--border:#24314a;--accent:#0ea5e9}
+    *{box-sizing:border-box} body{margin:0;font-family:Inter,system-ui,Arial;background:var(--bg);color:var(--text)}
+    .top{height:56px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;padding:0 14px}
+    .pill{border:1px solid var(--border);padding:6px 10px;border-radius:10px;color:var(--muted);font-size:13px}
+    .layout{display:grid;grid-template-columns:240px 1fr 320px;gap:10px;padding:10px;height:calc(100vh - 56px)}
+    .card{background:var(--panel);border:1px solid var(--border);border-radius:16px;padding:12px;overflow:auto}
+    .muted{color:var(--muted)}
+    .item{border:1px solid var(--border);border-radius:10px;padding:8px;margin:8px 0;color:var(--muted)}
+    .bubble{max-width:80%;padding:10px;border-radius:12px;margin:8px 0;font-size:14px}
+    .u{margin-left:auto;background:var(--accent);color:white}
+    .a{border:1px solid var(--border)}
+    .input{display:flex;gap:8px;position:sticky;bottom:0;background:var(--panel);padding-top:8px}
+    input{flex:1;background:transparent;border:1px solid var(--border);border-radius:10px;padding:10px;color:var(--text)}
+    button{background:var(--accent);border:0;color:#fff;padding:10px 14px;border-radius:10px}
+    .badge{display:inline-block;background:#1e293b;color:#93c5fd;padding:4px 8px;border-radius:999px;font-size:12px}
+  </style>
+</head>
+<body>
+  <div class="top">
+    <b>NaPoLeoN AI — Preview</b>
+    <div style="display:flex;gap:8px">
+      <span class="pill">Chat</span><span class="pill">Multi-Agent</span><span class="pill">Dashboard</span>
+    </div>
+  </div>
+
+  <div class="layout">
+    <aside class="card">
+      <div class="muted">Проекты</div>
+      <div class="item">🏢 npln.tech</div>
+      <div class="item">🧱 Flooring News</div>
+      <div class="item">🧩 Ceramic Digest</div>
+      <div class="item">🚀 AI Product</div>
+      <p class="muted" style="font-size:12px;margin-top:12px">Это быстрый HTML-preview с GitHub Pages.</p>
+    </aside>
+
+    <section class="card" style="display:flex;flex-direction:column">
+      <div class="bubble u">Собери MVP под мой стиль</div>
+      <div class="bubble a">Принято. План: UI → Multi-agent → Dashboard → deploy.</div>
+      <div class="bubble a">Статус: <span class="badge">MVP IN PROGRESS</span></div>
+      <div class="input">
+        <input placeholder="Напиши задачу..." disabled />
+        <button disabled>Send</button>
+      </div>
+    </section>
+
+    <aside class="card">
+      <div class="muted">Live Log</div>
+      <div class="item">08:31 · Ищу релевантные данные...</div>
+      <div class="item">08:31 · Читаю источники...</div>
+      <div class="item">08:31 · Сравниваю варианты...</div>
+      <div class="item">08:32 · Формирую ответ...</div>
+      <div class="item">08:32 · Готово</div>
+    </aside>
+  </div>
+</body>
+</html>
