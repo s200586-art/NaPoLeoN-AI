@@ -11,7 +11,7 @@ npm run dev
 ```
 
 ## Переменные окружения
-- `OPENCLAW_GATEWAY_URL` — HTTPS URL gateway (например `https://cv5547021.tail90a702.ts.net`)
+- `OPENCLAW_GATEWAY_URL` — HTTPS URL gateway (например `https://npln.tech`)
 - `OPENCLAW_GATEWAY_TOKEN` — токен из `/root/.openclaw/openclaw.json` → `gateway.auth.token`
 - `OPENCLAW_MODEL` — модель для ответа (опционально)
 

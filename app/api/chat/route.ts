@@ -83,16 +83,32 @@ export async function POST(req: NextRequest) {
       }),
     })
 
-    const data = await upstream.json().catch(() => ({}))
+    const raw = await upstream.text()
+    const data = (() => {
+      try {
+        return JSON.parse(raw)
+      } catch {
+        return null
+      }
+    })()
 
     if (!upstream.ok) {
       return NextResponse.json(
-        { error: data?.error?.message || 'Ошибка Gateway' },
+        { error: data?.error?.message || `Ошибка Gateway (${upstream.status})` },
         { status: upstream.status }
       )
     }
 
-    const answer = data?.choices?.[0]?.message?.content || 'Пустой ответ'
+    const answer = data?.choices?.[0]?.message?.content
+    if (!answer) {
+      return NextResponse.json(
+        {
+          error:
+            'Gateway вернул неожиданный формат ответа. Проверьте OPENCLAW_GATEWAY_URL и endpoint /v1/chat/completions.',
+        },
+        { status: 502 }
+      )
+    }
 
     // Save assistant response to session history
     history.push({ role: 'assistant', content: answer })
