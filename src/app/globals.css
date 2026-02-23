@@ -1,0 +1,61 @@
+@import "tailwindcss";
+
+:root {
+  --bg: #f5f7fb;
+  --panel: #ffffff;
+  --text: #0f172a;
+  --muted: #475569;
+  --border: #dbe3ef;
+}
+
+:root[data-theme="dark"] {
+  --bg: #0b1020;
+  --panel: #121a2d;
+  --text: #e7edf7;
+  --muted: #9fb0cc;
+  --border: #24314a;
+}
+
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: Inter, ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif;
+}
+
+.tab {
+  @apply px-3 py-1.5 rounded-lg border text-sm;
+  border-color: var(--border);
+}
+
+.tab-active {
+  @apply bg-sky-600 text-white;
+  border-color: transparent;
+}
+
+.item {
+  @apply rounded-lg px-2 py-1.5 border text-[var(--muted)];
+  border-color: var(--border);
+}
+
+.input {
+  @apply w-full rounded-xl border px-3 py-2 outline-none;
+  border-color: var(--border);
+  background: transparent;
+}
+
+.btn {
+  @apply rounded-xl bg-sky-600 hover:bg-sky-500 transition text-white px-4 py-2;
+}
+
+.bubble {
+  @apply rounded-xl px-3 py-2 max-w-[80%] text-sm whitespace-pre-wrap;
+}
+
+.bubble-user {
+  @apply ml-auto bg-sky-600 text-white;
+}
+
+.bubble-ai {
+  border: 1px solid var(--border);
+  color: var(--text);
+}
