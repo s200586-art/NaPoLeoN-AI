@@ -1,25 +1,27 @@
 @import "tailwindcss";
 
 :root {
-  --bg-app: #f7f7f8;
-  --bg-sidebar: #ececf1;
+  --bg-app: #f2f2f3;
+  --bg-sidebar: #ededee;
+  --bg-surface: #ffffff;
   --bg-input: #ffffff;
-  --bg-user-bubble: #e8e8ea;
-  --text-primary: #0f0f0f;
-  --text-secondary: #6a6a6a;
-  --border: #d9d9de;
-  --accent: #10a37f;
+  --bg-user-bubble: #e9eaec;
+  --text-primary: #111214;
+  --text-secondary: #6b6d73;
+  --border: #dadce1;
+  --accent: #16181d;
 }
 
 :root[data-theme="dark"] {
-  --bg-app: #212121;
-  --bg-sidebar: #171717;
-  --bg-input: #2f2f2f;
-  --bg-user-bubble: #2f2f2f;
-  --text-primary: #ececec;
-  --text-secondary: #a9a9a9;
-  --border: #3f3f46;
-  --accent: #10a37f;
+  --bg-app: #17181b;
+  --bg-sidebar: #121316;
+  --bg-surface: #1d1f24;
+  --bg-input: #22252b;
+  --bg-user-bubble: #2a2d34;
+  --text-primary: #eceef3;
+  --text-secondary: #a4a8b3;
+  --border: #31343c;
+  --accent: #f3f4f6;
 }
 
 * { box-sizing: border-box; }
@@ -28,14 +30,15 @@ body {
   margin: 0;
   background: var(--bg-app);
   color: var(--text-primary);
-  font-family: var(--font-inter), -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  font-family: var(--font-ui), -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
   overflow: hidden;
 }
 
 ::-webkit-scrollbar { width: 8px; height: 8px; }
-::-webkit-scrollbar-thumb { background: #6663; border-radius: 10px; }
+::-webkit-scrollbar-thumb { background: #7774; border-radius: 10px; }
 ::-webkit-scrollbar-track { background: transparent; }
 
 .nav-item {
@@ -46,16 +49,16 @@ body {
   border: 1px solid transparent;
   color: var(--text-primary);
   font-size: 14px;
-  transition: all .15s ease;
+  transition: all .14s ease;
 }
-.nav-item:hover { background: #ffffff0f; border-color: #ffffff14; }
-.nav-item.active { background: #ffffff18; border-color: #ffffff22; }
+.nav-item:hover { background: #ffffff10; border-color: #ffffff16; }
+.nav-item.active { background: #ffffff1b; border-color: #ffffff24; }
 
-.msg-ai { line-height: 1.75; font-size: 16px; }
+.msg-ai { line-height: 1.78; font-size: 16px; letter-spacing: 0.01em; }
 .msg-user {
   background: var(--bg-user-bubble);
   border: 1px solid var(--border);
-  border-radius: 18px 18px 6px 18px;
+  border-radius: 18px 18px 8px 18px;
   padding: 12px 14px;
   font-size: 15px;
 }
@@ -64,7 +67,7 @@ body {
   border: 1px solid var(--border);
   background: var(--bg-input);
   border-radius: 22px;
-  box-shadow: 0 8px 28px rgba(0,0,0,.18);
+  box-shadow: 0 10px 36px rgba(0,0,0,.22);
 }
 
 .chip {

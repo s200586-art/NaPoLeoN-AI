@@ -4,7 +4,11 @@ import { useEffect, useRef, useState } from "react";
 
 type Msg = { role: "user" | "assistant"; text: string };
 
-const IconAI = () => <div className="w-7 h-7 rounded-full bg-[var(--accent)] text-black text-[11px] font-bold flex items-center justify-center">AI</div>;
+const Logo = () => (
+  <div className="w-7 h-7 rounded-full bg-[var(--accent)] text-[var(--bg-app)] grid place-items-center text-[10px] font-bold">NP</div>
+);
+
+const PlusIcon = () => <span className="text-base">＋</span>;
 
 export default function Home() {
   const [theme, setTheme] = useState<"dark" | "light">("dark");
@@ -55,32 +59,32 @@ export default function Home() {
   };
 
   return (
-    <div className="h-screen w-screen flex overflow-hidden">
+    <div className="h-screen w-screen flex overflow-hidden bg-[var(--bg-app)]">
       <aside className="hidden md:flex w-[280px] shrink-0 h-full bg-[var(--bg-sidebar)] border-r border-[var(--border)] flex-col">
         <div className="p-3 border-b border-[var(--border)]">
-          <button className="nav-item active">➕ New chat</button>
+          <button className="nav-item active"><PlusIcon /> New chat</button>
         </div>
         <div className="p-2 overflow-auto flex-1">
           <div className="px-2 py-2 text-[11px] uppercase tracking-wider text-[var(--text-secondary)]">Today</div>
-          <button className="nav-item active">🚀 NaPoLeoN Launch Plan</button>
-          <button className="nav-item">🎨 UI Refactor v2</button>
-          <button className="nav-item">📈 Marketing ideas</button>
+          <button className="nav-item active">NaPoLeoN Launch Plan</button>
+          <button className="nav-item">UI Refactor v2</button>
+          <button className="nav-item">Marketing ideas</button>
 
           <div className="px-2 py-3 text-[11px] uppercase tracking-wider text-[var(--text-secondary)]">Projects</div>
-          <button className="nav-item">🏢 npln.tech</button>
-          <button className="nav-item">🧱 Flooring</button>
-          <button className="nav-item">🧩 Ceramic</button>
+          <button className="nav-item">npln.tech</button>
+          <button className="nav-item">Flooring</button>
+          <button className="nav-item">Ceramic</button>
         </div>
         <div className="p-3 border-t border-[var(--border)]">
-          <button onClick={toggleTheme} className="nav-item">{theme === "dark" ? "🌙 Dark" : "☀️ Light"}</button>
+          <button onClick={toggleTheme} className="nav-item">{theme === "dark" ? "Dark" : "Light"} mode</button>
         </div>
       </aside>
 
       <main className="flex-1 h-full flex flex-col relative">
-        <div className="h-14 border-b border-[var(--border)] flex items-center justify-between px-4 md:px-6">
-          <div className="font-medium">NaPoLeoN AI</div>
+        <div className="h-14 border-b border-[var(--border)] flex items-center justify-between px-4 md:px-6 bg-[var(--bg-app)]/90 backdrop-blur">
+          <div className="font-semibold tracking-tight">NaPoLeoN AI</div>
           <div className="flex items-center gap-2">
-            <span className="chip">GPT-style UI v2</span>
+            <span className="chip">Pro UI</span>
             <span className="chip">Live</span>
           </div>
         </div>
@@ -90,24 +94,23 @@ export default function Home() {
             {messages.length === 0 && !loading && (
               <div className="h-[45vh] grid place-items-center text-center">
                 <div>
-                  <div className="text-4xl mb-3">✨</div>
-                  <h1 className="text-3xl font-semibold mb-2">Чем помочь сегодня?</h1>
-                  <p className="text-[var(--text-secondary)]">Давай доведём дизайн и логику до уровня ChatGPT/Manus.</p>
+                  <h1 className="text-3xl font-semibold mb-2 tracking-tight">What should we build next?</h1>
+                  <p className="text-[var(--text-secondary)]">Premium interface baseline is ready. Next step: behaviors & motion polish.</p>
                 </div>
               </div>
             )}
 
             {messages.map((m, i) => (
               <div key={i} className={`flex gap-3 ${m.role === "user" ? "justify-end" : "justify-start"}`}>
-                {m.role === "assistant" && <IconAI />}
+                {m.role === "assistant" && <Logo />}
                 <div className={m.role === "assistant" ? "msg-ai max-w-[88%]" : "msg-user max-w-[75%]"}>{m.text}</div>
               </div>
             ))}
 
             {loading && (
               <div className="flex gap-3 items-center">
-                <IconAI />
-                <div className="text-[var(--text-secondary)]">Думаю<span className="animate-pulse">...</span></div>
+                <Logo />
+                <div className="text-[var(--text-secondary)]">Thinking…</div>
               </div>
             )}
             <div ref={bottomRef} />
@@ -126,25 +129,25 @@ export default function Home() {
                     send();
                   }
                 }}
-                placeholder="Сообщение NaPoLeoN..."
+                placeholder="Message NaPoLeoN..."
                 className="w-full bg-transparent outline-none resize-none px-3 py-2 text-[15px] min-h-[48px] max-h-[180px]"
                 rows={1}
               />
               <div className="flex items-center justify-between px-2 pb-1">
                 <div className="flex gap-2 text-sm text-[var(--text-secondary)]">
-                  <button className="chip">📎 Attach</button>
-                  <button className="chip">🛠 Tools</button>
+                  <button className="chip">Attach</button>
+                  <button className="chip">Tools</button>
                 </div>
                 <button
                   onClick={send}
                   disabled={!input.trim() || loading}
-                  className="h-10 px-4 rounded-xl bg-[var(--accent)] text-black font-semibold disabled:opacity-40"
+                  className="h-10 px-4 rounded-xl bg-[var(--accent)] text-[var(--bg-app)] font-semibold disabled:opacity-40"
                 >
                   Send
                 </button>
               </div>
             </div>
-            <div className="text-center text-xs text-[var(--text-secondary)] mt-2">NaPoLeoN AI может ошибаться. Проверяйте важные факты.</div>
+            <div className="text-center text-xs text-[var(--text-secondary)] mt-2">NaPoLeoN AI can make mistakes. Check critical facts.</div>
           </div>
         </div>
       </main>
