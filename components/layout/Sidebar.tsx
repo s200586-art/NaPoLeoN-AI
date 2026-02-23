@@ -1,0 +1,187 @@
+'use client'
+
+import React from 'react'
+import {
+  MessageSquare,
+  Bot,
+  LayoutDashboard,
+  Plus,
+  Settings,
+  ChevronLeft,
+  ChevronRight,
+  Sun,
+  Moon,
+  LogOut,
+} from 'lucide-react'
+import { motion, AnimatePresence } from 'framer-motion'
+import { useAppStore, ViewMode } from '@/lib/store'
+import { cn } from '@/lib/utils'
+import { Button } from '@/components/ui/Button'
+
+interface SidebarProps {
+  className?: string
+}
+
+export function Sidebar({ className }: SidebarProps) {
+  const {
+    sidebarOpen,
+    setSidebarOpen,
+    viewMode,
+    setViewMode,
+    theme,
+    setTheme,
+    chats,
+    activeChat,
+    setActiveChat,
+    addChat,
+    isAuthenticated,
+    setAuthenticated,
+  } = useAppStore()
+
+  const handleNewChat = () => {
+    const newChat = {
+      id: Math.random().toString(36).slice(2),
+      title: 'Новый чат',
+      messages: [],
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    }
+    addChat(newChat)
+  }
+
+  const navItems: { id: ViewMode; icon: React.ElementType; label: string }[] = [
+    { id: 'chat', icon: MessageSquare, label: 'Чат' },
+    { id: 'agents', icon: Bot, label: 'Агенты' },
+    { id: 'dashboard', icon: LayoutDashboard, label: 'Дашборд' },
+  ]
+
+  return (
+    <motion.aside
+      initial={false}
+      animate={{ width: sidebarOpen ? 260 : 72 }}
+      transition={{ duration: 0.2, ease: 'easeInOut' }}
+      className={cn(
+        'flex flex-col h-full border-r border-border bg-card dark:bg-zinc-900/50',
+        className
+      )}
+    >
+      {/* Header */}
+      <div className="flex items-center justify-between p-4 border-b border-border">
+        <AnimatePresence mode="wait">
+          {sidebarOpen && (
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="flex items-center gap-2"
+            >
+              <div className="h-8 w-8 rounded-lg bg-zinc-900 dark:bg-zinc-100 flex items-center justify-center">
+                <span className="text-lg font-bold text-white dark:text-zinc-900">N</span>
+              </div>
+              <span className="font-semibold text-sm">NaPoLeoN</span>
+            </motion.div>
+          )}
+        </AnimatePresence>
+        <Button
+          variant="ghost"
+          size="icon"
+          onClick={() => setSidebarOpen(!sidebarOpen)}
+          className="h-8 w-8"
+        >
+          {sidebarOpen ? <ChevronLeft className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
+        </Button>
+      </div>
+
+      {/* New Chat Button */}
+      <div className="p-3">
+        <Button
+          variant="outline"
+          className={cn('w-full justify-start gap-2', !sidebarOpen && 'justify-center')}
+          onClick={handleNewChat}
+        >
+          <Plus className="h-4 w-4" />
+          {sidebarOpen && <span>Новый чат</span>}
+        </Button>
+      </div>
+
+      {/* Navigation */}
+      <nav className="flex-1 px-3 py-2 space-y-1">
+        {navItems.map((item) => {
+          const Icon = item.icon
+          const isActive = viewMode === item.id
+          return (
+            <button
+              key={item.id}
+              onClick={() => setViewMode(item.id)}
+              className={cn(
+                'w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all duration-150',
+                isActive
+                  ? 'bg-zinc-100 dark:bg-zinc-800 text-foreground'
+                  : 'text-muted-foreground hover:bg-zinc-100 dark:hover:bg-zinc-800/50 hover:text-foreground',
+                !sidebarOpen && 'justify-center'
+              )}
+            >
+              <Icon className={cn('h-5 w-5 shrink-0', isActive && 'text-zinc-900 dark:text-zinc-100')} />
+              {sidebarOpen && <span>{item.label}</span>}
+            </button>
+          )
+        })}
+      </nav>
+
+      {/* Chat History */}
+      {sidebarOpen && (
+        <div className="flex-1 px-3 py-2 overflow-y-auto">
+          <p className="px-3 py-2 text-xs font-medium text-muted-foreground uppercase tracking-wider">
+            Последние чаты
+          </p>
+          <div className="space-y-1">
+            {chats.slice(0, 5).map((chat) => (
+              <button
+                key={chat.id}
+                onClick={() => {
+                  setActiveChat(chat)
+                  setViewMode('chat')
+                }}
+                className={cn(
+                  'w-full flex items-center gap-2 px-3 py-2 rounded-lg text-sm text-left transition-all duration-150 truncate',
+                  activeChat?.id === chat.id
+                    ? 'bg-zinc-100 dark:bg-zinc-800'
+                    : 'hover:bg-zinc-100 dark:hover:bg-zinc-800/50 text-muted-foreground hover:text-foreground'
+                )}
+              >
+                <MessageSquare className="h-4 w-4 shrink-0" />
+                <span className="truncate">{chat.title}</span>
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Footer */}
+      <div className="p-3 border-t border-border space-y-2">
+        <Button
+          variant="ghost"
+          size="sm"
+          className={cn('w-full justify-start gap-2', !sidebarOpen && 'justify-center')}
+          onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}
+        >
+          {theme === 'dark' ? (
+            <Sun className="h-4 w-4" />
+          ) : (
+            <Moon className="h-4 w-4" />
+          )}
+          {sidebarOpen && <span>{theme === 'dark' ? 'Светлая' : 'Тёмная'}</span>}
+        </Button>
+        <Button
+          variant="ghost"
+          size="sm"
+          className={cn('w-full justify-start gap-2', !sidebarOpen && 'justify-center')}
+          onClick={() => setAuthenticated(false)}
+        >
+          <LogOut className="h-4 w-4" />
+          {sidebarOpen && <span>Выход</span>}
+        </Button>
+      </div>
+    </motion.aside>
+  )
+}
