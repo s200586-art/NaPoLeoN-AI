@@ -65,14 +65,15 @@ export function ChatCanvas({ className }: ChatCanvasProps) {
     addMessage(chat.id, assistantMessage)
 
     try {
-      const history = [...(chat.messages || []), userMessage]
-        .slice(-12)
-        .map((m) => ({ role: m.role, content: m.content }))
+      // Use persistent session ID stored in localStorage
+      const sessionId = typeof window !== 'undefined'
+        ? (localStorage.getItem('napoleon_session_id') || 'main')
+        : 'main'
 
       const res = await fetch('/api/chat', {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ messages: history }),
+        body: JSON.stringify({ message: content, sessionId }),
       })
 
       const data = await res.json()
@@ -80,9 +81,13 @@ export function ChatCanvas({ className }: ChatCanvasProps) {
         throw new Error(data?.error || 'Ошибка запроса к OpenClaw')
       }
 
-      const fullResponse = data?.answer || 'Пустой ответ от OpenClaw.'
+      const fullResponse = data?.answer || 'Пустой ответ от Наполи.'
+      // Save session ID if returned
+      if (data?.sessionId && typeof window !== 'undefined') {
+        localStorage.setItem('napoleon_session_id', data.sessionId)
+      }
       updateMessage(chat.id, assistantMessageId, fullResponse)
-      addLog({ level: 'success', message: 'Ответ получен от OpenClaw' })
+      addLog({ level: 'success', message: 'Ответ получен от Наполи' })
     } catch (e) {
       const errText = e instanceof Error ? e.message : 'Неизвестная ошибка'
       updateMessage(chat.id, assistantMessageId, `Ошибка: ${errText}`)
