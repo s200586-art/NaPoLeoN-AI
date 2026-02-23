@@ -1,70 +1,76 @@
 @import "tailwindcss";
 
 :root {
-  /* ChatGPT-like Light Theme */
-  --bg-app: #ffffff;
-  --bg-sidebar: #f9f9f9;
+  --bg-app: #f7f7f8;
+  --bg-sidebar: #ececf1;
   --bg-input: #ffffff;
-  --bg-user-bubble: #f4f4f4;
-  --text-primary: #0d0d0d;
-  --text-secondary: #666666;
-  --border: #e5e5e5;
-  --shadow-input: 0 0 15px rgba(0,0,0,0.05);
+  --bg-user-bubble: #e8e8ea;
+  --text-primary: #0f0f0f;
+  --text-secondary: #6a6a6a;
+  --border: #d9d9de;
+  --accent: #10a37f;
 }
 
 :root[data-theme="dark"] {
-  /* ChatGPT-like Dark Theme */
   --bg-app: #212121;
   --bg-sidebar: #171717;
   --bg-input: #2f2f2f;
   --bg-user-bubble: #2f2f2f;
   --text-primary: #ececec;
-  --text-secondary: #b4b4b4;
-  --border: #424242;
-  --shadow-input: 0 0 20px rgba(0,0,0,0.2);
+  --text-secondary: #a9a9a9;
+  --border: #3f3f46;
+  --accent: #10a37f;
 }
 
+* { box-sizing: border-box; }
+html, body { height: 100%; }
 body {
+  margin: 0;
   background: var(--bg-app);
   color: var(--text-primary);
   font-family: var(--font-inter), -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
-  font-feature-settings: "rlig" 1, "calt" 1, "ss01" 1;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
-  height: 100vh;
   overflow: hidden;
 }
 
-/* Custom Scrollbar */
-::-webkit-scrollbar {
-  width: 6px;
-  height: 6px;
-}
-::-webkit-scrollbar-track {
-  background: transparent;
-}
-::-webkit-scrollbar-thumb {
-  background: var(--border);
-  border-radius: 3px;
-}
-::-webkit-scrollbar-thumb:hover {
-  background: var(--text-secondary);
-}
+::-webkit-scrollbar { width: 8px; height: 8px; }
+::-webkit-scrollbar-thumb { background: #6663; border-radius: 10px; }
+::-webkit-scrollbar-track { background: transparent; }
 
-.sidebar-btn {
-  @apply flex items-center gap-3 w-full px-3 py-3 rounded-lg text-sm transition-colors duration-200;
+.nav-item {
+  display: flex; align-items: center; gap: 10px;
+  width: 100%;
+  padding: 10px 12px;
+  border-radius: 10px;
+  border: 1px solid transparent;
   color: var(--text-primary);
+  font-size: 14px;
+  transition: all .15s ease;
 }
-.sidebar-btn:hover {
-  background-color: rgba(128, 128, 128, 0.1);
-}
+.nav-item:hover { background: #ffffff0f; border-color: #ffffff14; }
+.nav-item.active { background: #ffffff18; border-color: #ffffff22; }
 
-.input-area {
-  background: var(--bg-input);
+.msg-ai { line-height: 1.75; font-size: 16px; }
+.msg-user {
+  background: var(--bg-user-bubble);
   border: 1px solid var(--border);
-  box-shadow: var(--shadow-input);
+  border-radius: 18px 18px 6px 18px;
+  padding: 12px 14px;
+  font-size: 15px;
 }
 
-.prose {
-  @apply text-base leading-relaxed;
+.composer {
+  border: 1px solid var(--border);
+  background: var(--bg-input);
+  border-radius: 22px;
+  box-shadow: 0 8px 28px rgba(0,0,0,.18);
+}
+
+.chip {
+  font-size: 12px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  padding: 5px 10px;
+  color: var(--text-secondary);
 }
