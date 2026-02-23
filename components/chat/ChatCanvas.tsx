@@ -76,9 +76,20 @@ export function ChatCanvas({ className }: ChatCanvasProps) {
         body: JSON.stringify({ message: content, sessionId }),
       })
 
-      const data = await res.json()
+      const raw = await res.text()
+      const data = (() => {
+        try {
+          return JSON.parse(raw)
+        } catch {
+          return null
+        }
+      })()
+
       if (!res.ok) {
-        throw new Error(data?.error || 'Ошибка запроса к OpenClaw')
+        throw new Error(
+          data?.error ||
+          `Ошибка запроса к OpenClaw (${res.status})${raw ? `: ${raw.slice(0, 180)}` : ''}`
+        )
       }
 
       const fullResponse = data?.answer || 'Пустой ответ от Наполи.'
