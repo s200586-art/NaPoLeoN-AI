@@ -8,6 +8,7 @@ import { LivePanel } from '@/components/layout/LivePanel'
 import { ChatCanvas } from '@/components/chat/ChatCanvas'
 import { MultiAgentView } from '@/components/features/MultiAgentView'
 import { DashboardView } from '@/components/features/DashboardView'
+import { ProjectsView } from '@/components/features/ProjectsView'
 
 export default function Home() {
   const router = useRouter()
@@ -72,6 +73,8 @@ export default function Home() {
         return <MultiAgentView />
       case 'dashboard':
         return <DashboardView />
+      case 'projects':
+        return <ProjectsView />
       default:
         return <ChatCanvas />
     }

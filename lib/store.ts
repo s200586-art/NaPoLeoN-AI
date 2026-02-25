@@ -4,7 +4,7 @@ import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
 
 export type Theme = 'light' | 'dark' | 'system'
-export type ViewMode = 'chat' | 'agents' | 'dashboard'
+export type ViewMode = 'chat' | 'agents' | 'dashboard' | 'projects'
 
 export interface MessageAttachment {
   id: string

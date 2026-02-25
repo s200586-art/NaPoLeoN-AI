@@ -6,6 +6,7 @@ import {
   MessageSquare,
   Bot,
   LayoutDashboard,
+  FolderOpen,
   Plus,
   Trash2,
   ChevronLeft,
@@ -64,6 +65,7 @@ export function Sidebar({ className }: SidebarProps) {
     { id: 'chat', icon: MessageSquare, label: 'Чат' },
     { id: 'agents', icon: Bot, label: 'Агенты' },
     { id: 'dashboard', icon: LayoutDashboard, label: 'Дашборд' },
+    { id: 'projects', icon: FolderOpen, label: 'Проекты' },
   ]
 
   return (
