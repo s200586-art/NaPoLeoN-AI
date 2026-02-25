@@ -59,6 +59,9 @@ function formatBytes(size: number) {
 }
 
 function modelLabel(model: string) {
+  const lowered = model.toLowerCase()
+  if (lowered.includes('minimax')) return 'MiniMax'
+  if (lowered.includes('kimi') || lowered.includes('moonshot')) return 'Kimi'
   const parts = model.split('/')
   return parts[parts.length - 1] || model
 }

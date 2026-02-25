@@ -13,7 +13,8 @@ npm run dev
 ## Переменные окружения
 - `OPENCLAW_GATEWAY_URL` — HTTPS URL gateway (например `https://npln.tech`)
 - `OPENCLAW_GATEWAY_TOKEN` — токен из `/root/.openclaw/openclaw.json` → `gateway.auth.token`
-- `OPENCLAW_MODEL` — модель для ответа (опционально)
+- `OPENCLAW_KIMI_MODEL` — model id Kimi в OpenClaw (по умолчанию `moonshotai/kimi-k2-instruct`)
+- `OPENCLAW_MINIMAX_MODEL` — model id MiniMax в OpenClaw (по умолчанию `minimax/MiniMax-M2.5`)
 
 ## Стек
 - Next.js 14

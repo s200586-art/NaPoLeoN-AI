@@ -45,6 +45,8 @@ export interface LogEntry {
   message: string
 }
 
+const DEFAULT_SELECTED_MODEL = 'moonshotai/kimi-k2-instruct'
+
 interface AppState {
   // Theme
   theme: Theme
@@ -190,7 +192,7 @@ export const useAppStore = create<AppState>()(
       }),
 
       // Model
-      selectedModel: 'anthropic/claude-sonnet-4-6',
+      selectedModel: DEFAULT_SELECTED_MODEL,
       setSelectedModel: (model) => set({ selectedModel: model }),
 
       // Agents
@@ -242,6 +244,11 @@ export const useAppStore = create<AppState>()(
           ...currentState,
           ...typedState,
           chats: normalizedChats,
+          selectedModel:
+            typeof typedState.selectedModel === 'string' &&
+            /(kimi|moonshot|minimax)/i.test(typedState.selectedModel)
+              ? typedState.selectedModel
+              : DEFAULT_SELECTED_MODEL,
         }
       },
     }

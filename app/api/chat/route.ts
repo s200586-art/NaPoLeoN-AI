@@ -34,7 +34,7 @@ interface IncomingAttachment {
   textContent?: string
 }
 
-const DEFAULT_MODEL = process.env.OPENCLAW_MODEL || 'anthropic/claude-sonnet-4-6'
+const DEFAULT_MODEL = process.env.OPENCLAW_KIMI_MODEL || 'moonshotai/kimi-k2-instruct'
 const MAX_ATTACHMENTS = 6
 const MAX_ATTACHMENT_TEXT = 12000
 
@@ -85,6 +85,10 @@ function buildAttachmentContext(attachments: IncomingAttachment[]) {
   return lines.join('\n')
 }
 
+function isSupportedModel(modelId: string) {
+  return /(kimi|moonshot|minimax)/i.test(modelId)
+}
+
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json()
@@ -113,7 +117,11 @@ export async function POST(req: NextRequest) {
 
     const gatewayUrl = process.env.OPENCLAW_GATEWAY_URL
     const gatewayToken = process.env.OPENCLAW_GATEWAY_TOKEN
-    const selectedModel = model?.trim() || DEFAULT_MODEL
+    const requestedModel = model?.trim()
+    const selectedModel =
+      requestedModel && isSupportedModel(requestedModel)
+        ? requestedModel
+        : DEFAULT_MODEL
 
     if (!gatewayUrl || !gatewayToken) {
       return NextResponse.json(

@@ -4,7 +4,14 @@ import path from 'node:path'
 type ChatMessage = { role: string; content: string }
 type SessionMap = Record<string, ChatMessage[]>
 
-const DEFAULT_FILE = path.join(process.cwd(), 'data', 'sessions.json')
+const IS_SERVERLESS_RUNTIME = Boolean(
+  process.env.VERCEL ||
+  process.env.AWS_LAMBDA_FUNCTION_NAME ||
+  process.env.LAMBDA_TASK_ROOT
+)
+const DEFAULT_FILE = IS_SERVERLESS_RUNTIME
+  ? path.join('/tmp', 'napoleon', 'sessions.json')
+  : path.join(process.cwd(), 'data', 'sessions.json')
 const STORE_FILE = process.env.NAPOLEON_MEMORY_FILE || DEFAULT_FILE
 const MAX_SESSIONS = 200
 
@@ -42,10 +49,16 @@ function trimSessions() {
 }
 
 function enqueuePersist() {
-  writeQueue = writeQueue.then(async () => {
+  writeQueue = writeQueue
+    .catch(() => undefined)
+    .then(async () => {
     trimSessions()
-    await persistStore()
-  })
+      try {
+        await persistStore()
+      } catch {
+        // In serverless/read-only filesystems keep in-memory history without crashing requests.
+      }
+    })
   return writeQueue
 }
 
@@ -62,4 +75,3 @@ export async function saveSessionHistory(sessionId: string, history: ChatMessage
   store[sessionId] = history
   await enqueuePersist()
 }
-
