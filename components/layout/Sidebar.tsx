@@ -1,6 +1,7 @@
 'use client'
 
 import React from 'react'
+import { useRouter } from 'next/navigation'
 import {
   MessageSquare,
   Bot,
@@ -23,6 +24,7 @@ interface SidebarProps {
 }
 
 export function Sidebar({ className }: SidebarProps) {
+  const router = useRouter()
   const {
     sidebarOpen,
     setSidebarOpen,
@@ -47,6 +49,15 @@ export function Sidebar({ className }: SidebarProps) {
       updatedAt: new Date(),
     }
     addChat(newChat)
+  }
+
+  const handleLogout = async () => {
+    try {
+      await fetch('/api/auth/logout', { method: 'POST' })
+    } finally {
+      setAuthenticated(false)
+      router.replace('/login')
+    }
   }
 
   const navItems: { id: ViewMode; icon: React.ElementType; label: string }[] = [
@@ -189,7 +200,7 @@ export function Sidebar({ className }: SidebarProps) {
           variant="ghost"
           size="sm"
           className={cn('w-full justify-start gap-2', !sidebarOpen && 'justify-center')}
-          onClick={() => setAuthenticated(false)}
+          onClick={handleLogout}
         >
           <LogOut className="h-4 w-4" />
           {sidebarOpen && <span>Выход</span>}

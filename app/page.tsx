@@ -1,6 +1,6 @@
 'use client'
 
-import React, { useEffect } from 'react'
+import React, { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { useAppStore } from '@/lib/store'
 import { Sidebar } from '@/components/layout/Sidebar'
@@ -11,6 +11,7 @@ import { DashboardView } from '@/components/features/DashboardView'
 
 export default function Home() {
   const router = useRouter()
+  const [authChecked, setAuthChecked] = useState(false)
   const { 
     isAuthenticated, 
     setAuthenticated, 
@@ -19,10 +20,28 @@ export default function Home() {
   } = useAppStore()
 
   useEffect(() => {
-    // Check for existing auth
-    const auth = localStorage.getItem('nexus-auth')
-    if (auth) {
-      setAuthenticated(true)
+    let active = true
+
+    const checkSession = async () => {
+      try {
+        const res = await fetch('/api/auth/session', { cache: 'no-store' })
+        const data = await res.json()
+        if (!active) return
+        setAuthenticated(Boolean(data?.authenticated))
+      } catch {
+        if (!active) return
+        setAuthenticated(false)
+      } finally {
+        if (active) {
+          setAuthChecked(true)
+        }
+      }
+    }
+
+    checkSession()
+
+    return () => {
+      active = false
     }
   }, [setAuthenticated])
 
@@ -35,14 +54,13 @@ export default function Home() {
     }
   }, [theme])
 
-  // Redirect to login if not authenticated
   useEffect(() => {
-    if (!isAuthenticated) {
-      router.push('/login')
+    if (authChecked && !isAuthenticated) {
+      router.replace('/login')
     }
-  }, [isAuthenticated, router])
+  }, [authChecked, isAuthenticated, router])
 
-  if (!isAuthenticated) {
+  if (!authChecked || !isAuthenticated) {
     return null
   }
 

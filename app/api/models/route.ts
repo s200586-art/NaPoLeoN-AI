@@ -1,4 +1,5 @@
-import { NextResponse } from 'next/server'
+import { NextRequest, NextResponse } from 'next/server'
+import { isAuthorizedRequest } from '@/lib/auth'
 
 const KIMI_FALLBACK_MODEL = process.env.OPENCLAW_KIMI_MODEL || 'moonshotai/kimi-k2-instruct'
 const MINIMAX_FALLBACK_MODEL = process.env.OPENCLAW_MINIMAX_MODEL || 'minimax/MiniMax-M2.5'
@@ -53,7 +54,11 @@ function buildFallbackModels() {
   return Array.from(new Set([KIMI_FALLBACK_MODEL, MINIMAX_FALLBACK_MODEL]))
 }
 
-export async function GET() {
+export async function GET(req: NextRequest) {
+  if (!isAuthorizedRequest(req)) {
+    return NextResponse.json({ error: 'Требуется авторизация' }, { status: 401 })
+  }
+
   const gatewayUrl = process.env.OPENCLAW_GATEWAY_URL
   const gatewayToken = process.env.OPENCLAW_GATEWAY_TOKEN
   const fallbackModels = buildFallbackModels()

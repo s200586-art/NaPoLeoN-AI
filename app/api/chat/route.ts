@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getSessionHistory, saveSessionHistory } from '@/lib/session-memory'
+import { isAuthorizedRequest } from '@/lib/auth'
 
 // Napoleon AI persona system prompt
 const NAPOLEON_SYSTEM = `Ты — Наполи (Наполеон), персональный AI-ассистент и бизнес-партнёр Сергея Стыценко.
@@ -167,6 +168,10 @@ function extractStreamDelta(payload: unknown): string {
 }
 
 export async function POST(req: NextRequest) {
+  if (!isAuthorizedRequest(req)) {
+    return NextResponse.json({ error: 'Требуется авторизация' }, { status: 401 })
+  }
+
   try {
     const body = await req.json()
     const { message, sessionId, model, attachments } = body as {

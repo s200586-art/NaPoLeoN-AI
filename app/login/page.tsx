@@ -1,6 +1,6 @@
 'use client'
 
-import React, { useState } from 'react'
+import React, { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { motion } from 'framer-motion'
 import { Eye, EyeOff, Lock, AlertCircle } from 'lucide-react'
@@ -15,24 +15,63 @@ export default function LoginPage() {
   const [showPassword, setShowPassword] = useState(false)
   const [error, setError] = useState('')
   const [isLoading, setIsLoading] = useState(false)
+  const [checkingSession, setCheckingSession] = useState(true)
+
+  useEffect(() => {
+    let active = true
+
+    const checkSession = async () => {
+      try {
+        const res = await fetch('/api/auth/session', { cache: 'no-store' })
+        const data = await res.json()
+        if (!active) return
+        if (data?.authenticated) {
+          setAuthenticated(true)
+          router.replace('/')
+        }
+      } finally {
+        if (active) {
+          setCheckingSession(false)
+        }
+      }
+    }
+
+    checkSession()
+
+    return () => {
+      active = false
+    }
+  }, [router, setAuthenticated])
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault()
     setError('')
     setIsLoading(true)
 
-    // Имитация задержки авторизации
-    await new Promise(resolve => setTimeout(resolve, 800))
+    try {
+      const res = await fetch('/api/auth/login', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ password }),
+      })
+      const data = await res.json().catch(() => null)
 
-    // Простая проверка пароля (для демо)
-    if (password === 'nexus2024' || password.length >= 6) {
+      if (!res.ok) {
+        throw new Error(data?.error || 'Ошибка авторизации')
+      }
+
       setAuthenticated(true)
-      localStorage.setItem('nexus-auth', 'true')
-      router.push('/')
-    } else {
-      setError('Неверный пароль. Для демо: nexus2024')
+      router.replace('/')
+    } catch (e) {
+      const message = e instanceof Error ? e.message : 'Ошибка авторизации'
+      setError(message)
+    } finally {
+      setIsLoading(false)
     }
-    setIsLoading(false)
+  }
+
+  if (checkingSession) {
+    return null
   }
 
   return (
@@ -103,12 +142,6 @@ export default function LoginPage() {
               {isLoading ? 'Проверяю...' : 'Продолжить'}
             </Button>
           </form>
-
-          <div className="mt-6 pt-6 border-t border-border">
-            <p className="text-xs text-muted-foreground text-center">
-              Демо-пароль: <code className="bg-zinc-100 dark:bg-zinc-800 px-1.5 py-0.5 rounded">nexus2024</code>
-            </p>
-          </div>
         </div>
 
         <p className="text-center text-xs text-muted-foreground mt-6">
