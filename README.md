@@ -20,6 +20,13 @@ npm run dev
 - `OPENCLAW_MAX_TOKENS` — ограничение длины ответа (меньше = быстрее, по умолчанию `900`)
 - `OPENCLAW_HISTORY_LIMIT` — сколько последних сообщений отправлять в модель (меньше = быстрее, по умолчанию `12`)
 - `OPENCLAW_TIMEOUT_MS` — таймаут запроса к OpenClaw (по умолчанию `45000`)
+- `GMAIL_ACCESS_TOKEN` — OAuth access token Gmail API для чтения inbox
+- `GMAIL_USER_ID` — user id для Gmail API (обычно `me`)
+- `TELEGRAM_BOT_TOKEN` — токен Telegram-бота, добавленного админом в каналы
+- `TELEGRAM_CHANNEL_IDS` — список chat_id каналов через запятую (например `@my_channel,-1001234567890`)
+- `X_BEARER_TOKEN` — Bearer token Twitter/X API v2
+- `X_USERNAME` — username аккаунта X без `@`
+- `DASHBOARD_REQUEST_TIMEOUT_MS` — таймаут внешних запросов дашборда (по умолчанию `8000`)
 
 ## Стек
 - Next.js 14
