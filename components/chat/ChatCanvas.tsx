@@ -17,6 +17,15 @@ interface ModelsResponse {
   defaultModel?: string
 }
 
+interface ChatResponse {
+  answer?: string
+  sessionId?: string
+  model?: string
+  requestedModel?: string
+  modelMismatch?: boolean
+  error?: string
+}
+
 export function ChatCanvas({ className }: ChatCanvasProps) {
   const {
     activeChat,
@@ -149,7 +158,7 @@ export function ChatCanvas({ className }: ChatCanvasProps) {
       const raw = await res.text()
       const data = (() => {
         try {
-          return JSON.parse(raw)
+          return JSON.parse(raw) as ChatResponse
         } catch {
           return null
         }
@@ -163,12 +172,22 @@ export function ChatCanvas({ className }: ChatCanvasProps) {
       }
 
       const fullResponse = data?.answer || 'Пустой ответ от Наполи.'
+      const actualModel = data?.model || selectedModel
+      const responseText = data?.modelMismatch
+        ? `[Внимание: gateway вернул модель ${actualModel} вместо выбранной ${selectedModel}]\n\n${fullResponse}`
+        : fullResponse
       // Save session ID if returned
       if (data?.sessionId && typeof window !== 'undefined') {
         localStorage.setItem('napoleon_session_id', data.sessionId)
       }
-      updateMessage(chat.id, assistantMessageId, fullResponse)
-      addLog({ level: 'success', message: `Ответ получен от Наполи (${selectedModel})` })
+      updateMessage(chat.id, assistantMessageId, responseText)
+      addLog({ level: 'success', message: `Ответ получен от Наполи (${actualModel})` })
+      if (data?.modelMismatch) {
+        addLog({
+          level: 'warn',
+          message: `Несоответствие модели: выбрана ${selectedModel}, gateway вернул ${actualModel}`,
+        })
+      }
     } catch (e) {
       const errText = e instanceof Error ? e.message : 'Неизвестная ошибка'
       updateMessage(chat.id, assistantMessageId, `Ошибка: ${errText}`)

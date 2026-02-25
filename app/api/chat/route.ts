@@ -89,6 +89,15 @@ function isSupportedModel(modelId: string) {
   return /(kimi|moonshot|minimax)/i.test(modelId)
 }
 
+type ModelFamily = 'kimi' | 'minimax' | 'unknown'
+
+function getModelFamily(modelId: string): ModelFamily {
+  const id = modelId.toLowerCase()
+  if (id.includes('kimi') || id.includes('moonshot')) return 'kimi'
+  if (id.includes('minimax')) return 'minimax'
+  return 'unknown'
+}
+
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json()
@@ -142,6 +151,12 @@ export async function POST(req: NextRequest) {
     // Build messages array with system prompt
     const messages = [
       { role: 'system', content: NAPOLEON_SYSTEM },
+      {
+        role: 'system',
+        content:
+          `Технический контекст: текущая выбранная модель OpenClaw = "${selectedModel}". ` +
+          'Если пользователь спрашивает о модели, называй именно этот id без догадок.',
+      },
       ...recentHistory,
     ]
 
@@ -187,6 +202,17 @@ export async function POST(req: NextRequest) {
       )
     }
 
+    const gatewayModel =
+      typeof data?.model === 'string' && data.model.trim()
+        ? data.model.trim()
+        : selectedModel
+    const requestedFamily = getModelFamily(selectedModel)
+    const gatewayFamily = getModelFamily(gatewayModel)
+    const modelMismatch =
+      requestedFamily !== 'unknown' &&
+      gatewayFamily !== 'unknown' &&
+      requestedFamily !== gatewayFamily
+
     // Save assistant response to session history
     history.push({ role: 'assistant', content: answer })
 
@@ -197,7 +223,13 @@ export async function POST(req: NextRequest) {
 
     await saveSessionHistory(sid, history)
 
-    return NextResponse.json({ answer, sessionId: sid, model: selectedModel })
+    return NextResponse.json({
+      answer,
+      sessionId: sid,
+      model: gatewayModel,
+      requestedModel: selectedModel,
+      modelMismatch,
+    })
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Неизвестная ошибка'
     return NextResponse.json({ error: message }, { status: 500 })
