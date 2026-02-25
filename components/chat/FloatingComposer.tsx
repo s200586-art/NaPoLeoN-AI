@@ -158,14 +158,16 @@ export function FloatingComposer({
     >
       <div
         className={cn(
-          'relative rounded-2xl border transition-all duration-150',
+          'relative overflow-hidden rounded-2xl border transition-all duration-150',
           'bg-card dark:bg-zinc-900/80 backdrop-blur-xl',
           'shadow-lg shadow-zinc-900/10 dark:shadow-black/20',
           isFocused
-            ? 'border-zinc-300 dark:border-zinc-700 ring-2 ring-zinc-200 dark:ring-zinc-800'
+            ? 'border-sky-400/60 dark:border-sky-700/80 ring-2 ring-sky-500/20 dark:ring-sky-500/20'
             : 'border-zinc-200 dark:border-zinc-800'
         )}
       >
+        <div className="pointer-events-none absolute inset-x-0 top-0 h-[2px] bg-gradient-to-r from-sky-500/60 via-cyan-500/25 to-transparent" />
+
         <input
           ref={fileInputRef}
           type="file"
@@ -234,7 +236,7 @@ export function FloatingComposer({
               type="button"
               variant="ghost"
               size="icon"
-              className="h-8 w-8 text-muted-foreground hover:text-foreground"
+              className="h-8 w-8 text-sky-500 hover:text-sky-600 dark:hover:text-sky-300"
               disabled={disabled}
               title="Быстрый режим"
             >
@@ -250,7 +252,7 @@ export function FloatingComposer({
                 className={cn(
                   'h-8 max-w-[220px] rounded-lg border border-zinc-200 bg-transparent px-2 text-xs text-muted-foreground outline-none transition-colors',
                   'dark:border-zinc-800',
-                  'focus:border-zinc-300 focus:text-foreground dark:focus:border-zinc-700'
+                  'focus:border-sky-400 focus:text-foreground dark:focus:border-sky-700'
                 )}
                 title={selectedModel}
               >
@@ -277,7 +279,7 @@ export function FloatingComposer({
             className={cn(
               'h-8 w-8 rounded-full transition-all duration-150',
               canSend
-                ? 'bg-zinc-900 dark:bg-zinc-100 text-white dark:text-zinc-900 hover:bg-zinc-800 dark:hover:bg-zinc-200'
+                ? 'bg-sky-600 text-white hover:bg-sky-500 dark:bg-sky-500 dark:hover:bg-sky-400'
                 : 'bg-zinc-200 dark:bg-zinc-800 text-muted-foreground cursor-not-allowed'
             )}
             onClick={handleSend}

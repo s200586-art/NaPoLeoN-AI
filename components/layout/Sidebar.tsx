@@ -127,10 +127,10 @@ export function Sidebar({ className }: SidebarProps) {
               key={item.id}
               onClick={() => setViewMode(item.id)}
               className={cn(
-                'w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all duration-150',
+                'w-full flex items-center gap-3 px-3 py-2.5 rounded-lg border-l-2 text-sm font-medium transition-all duration-150',
                 isActive
-                  ? 'bg-zinc-100 dark:bg-zinc-800 text-foreground'
-                  : 'text-muted-foreground hover:bg-zinc-100 dark:hover:bg-zinc-800/50 hover:text-foreground',
+                  ? 'border-sky-500 bg-sky-500/10 dark:bg-sky-500/10 text-foreground'
+                  : 'border-transparent text-muted-foreground hover:bg-zinc-100 dark:hover:bg-zinc-800/50 hover:text-foreground',
                 !sidebarOpen && 'justify-center'
               )}
             >

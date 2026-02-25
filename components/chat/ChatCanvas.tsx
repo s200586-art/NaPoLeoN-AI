@@ -307,7 +307,8 @@ export function ChatCanvas({ className }: ChatCanvasProps) {
   return (
     <div className={cn('flex h-full min-h-0 flex-col', className)}>
       {hasMessages ? (
-        <div className="flex-1 min-h-0 overflow-y-auto px-4 py-4 sm:px-6 sm:py-6">
+        <div className="relative flex-1 min-h-0 overflow-y-auto px-4 py-4 sm:px-6 sm:py-6">
+          <div className="pointer-events-none absolute inset-x-0 top-0 mx-auto h-20 w-full max-w-4xl bg-gradient-to-b from-sky-500/10 via-transparent to-transparent" />
           <div className="mx-auto flex w-full max-w-4xl flex-col gap-6">
             {activeChat?.messages.map((message) => (
               <MessageBubble key={message.id} message={message} />
@@ -322,8 +323,11 @@ export function ChatCanvas({ className }: ChatCanvasProps) {
             animate={{ opacity: 1, scale: 1 }}
             className="text-center"
           >
-            <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-zinc-100 dark:bg-zinc-800 mb-4">
-              <MessageSquare className="h-8 w-8 text-muted-foreground" />
+            <div className="mb-2 inline-flex items-center rounded-full border border-sky-500/30 bg-sky-500/10 px-2 py-1 text-[11px] font-medium text-sky-600 dark:text-sky-300">
+              Диалог
+            </div>
+            <div className="mb-4 inline-flex h-16 w-16 items-center justify-center rounded-2xl bg-gradient-to-br from-sky-500/20 via-blue-500/10 to-transparent">
+              <MessageSquare className="h-8 w-8 text-sky-500" />
             </div>
             <h2 className="text-xl font-semibold mb-2">Чем помочь сегодня?</h2>
             <p className="text-muted-foreground max-w-md">
@@ -333,7 +337,8 @@ export function ChatCanvas({ className }: ChatCanvasProps) {
         </div>
       )}
 
-      <div className="shrink-0 border-t border-border/70 bg-background/80 px-4 pb-4 pt-3 backdrop-blur sm:px-6">
+      <div className="relative shrink-0 border-t border-border/70 bg-background/80 px-4 pb-4 pt-3 backdrop-blur sm:px-6">
+        <div className="pointer-events-none absolute inset-x-0 top-0 h-[2px] bg-gradient-to-r from-sky-500/50 via-cyan-500/20 to-transparent" />
         <FloatingComposer
           onSend={handleSend}
           selectedModel={selectedModel}

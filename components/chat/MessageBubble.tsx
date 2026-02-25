@@ -74,12 +74,20 @@ export function MessageBubble({ message, className }: MessageBubbleProps) {
       >
         <div
           className={cn(
-            'max-w-full break-words rounded-2xl px-4 py-3 text-sm leading-relaxed',
+            'relative max-w-full break-words overflow-hidden rounded-2xl px-4 py-3 text-sm leading-relaxed',
             isUser
               ? 'bg-zinc-900 dark:bg-zinc-100 text-white dark:text-zinc-900 rounded-br-md'
               : 'bg-zinc-100 dark:bg-zinc-800 text-foreground rounded-bl-md'
           )}
         >
+          <div
+            className={cn(
+              'pointer-events-none absolute inset-x-0 top-0 h-[2px] bg-gradient-to-r',
+              isUser
+                ? 'from-sky-500/70 via-blue-500/35 to-transparent'
+                : 'from-violet-500/45 via-fuchsia-500/20 to-transparent'
+            )}
+          />
           {showTypingDots ? (
             <span className="inline-flex items-center gap-1 py-1">
               <span className="h-2 w-2 animate-bounce rounded-full bg-zinc-400" style={{ animationDelay: '0ms' }} />
