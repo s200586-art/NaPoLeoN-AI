@@ -27,6 +27,9 @@ npm run dev
 - `X_BEARER_TOKEN` — Bearer token Twitter/X API v2
 - `X_USERNAME` — username аккаунта X без `@`
 - `DASHBOARD_REQUEST_TIMEOUT_MS` — таймаут внешних запросов дашборда (по умолчанию `8000`)
+- `FITBIT_ACCESS_TOKEN` — OAuth access token Fitbit API (шаги/сон/пульс)
+- `FITBIT_USER_ID` — user id Fitbit (обычно `-` для текущего пользователя)
+- `FITBIT_TIMEZONE` — таймзона для выборки дневной статистики (например `Asia/Yekaterinburg`)
 - `GDRIVE_ACCESS_TOKEN` — OAuth access token Google Drive API для чтения папок/файлов
 - `GDRIVE_ROOT_FOLDER_ID` — id корневой папки проектов в Google Drive (по умолчанию `root`)
 - `GDRIVE_REQUEST_TIMEOUT_MS` — таймаут запросов к Google Drive (по умолчанию `8000`)

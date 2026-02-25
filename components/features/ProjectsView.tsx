@@ -206,6 +206,9 @@ export function ProjectsView() {
     <div className="flex h-full min-h-0 flex-col p-6">
       <div className="mb-6 flex items-start justify-between gap-4">
         <div>
+          <div className="mb-2 inline-flex items-center rounded-full border border-emerald-500/30 bg-emerald-500/10 px-2 py-1 text-[11px] font-medium text-emerald-600 dark:text-emerald-300">
+            Google Drive
+          </div>
           <h1 className="text-2xl font-semibold">Проекты</h1>
           <p className="mt-1 text-muted-foreground">Google Drive папки проекта и документы</p>
           <p className="mt-1 text-xs text-muted-foreground">
@@ -220,7 +223,7 @@ export function ProjectsView() {
             'inline-flex h-9 items-center gap-2 rounded-lg border px-3 text-sm transition-colors',
             isRefreshing || isLoading
               ? 'cursor-not-allowed border-zinc-300 text-zinc-400 dark:border-zinc-700 dark:text-zinc-500'
-              : 'border-zinc-300 hover:bg-zinc-100 dark:border-zinc-700 dark:hover:bg-zinc-800'
+              : 'border-sky-300/60 text-sky-700 hover:bg-sky-50 dark:border-sky-700/60 dark:text-sky-300 dark:hover:bg-sky-900/20'
           )}
         >
           <RefreshCw className={cn('h-4 w-4', (isRefreshing || isLoading) && 'animate-spin')} />
@@ -247,10 +250,11 @@ export function ProjectsView() {
         <motion.section
           initial={{ opacity: 0, y: 10 }}
           animate={{ opacity: 1, y: 0 }}
-          className="flex min-h-0 flex-col rounded-xl border border-border bg-card dark:bg-zinc-900/50"
+          className="relative flex min-h-0 flex-col overflow-hidden rounded-xl border border-border bg-card dark:bg-zinc-900/50"
         >
+          <div className="pointer-events-none absolute inset-x-0 top-0 h-[2px] bg-gradient-to-r from-amber-500/70 via-yellow-500/40 to-transparent" />
           <div className="flex shrink-0 items-center gap-2 border-b border-border p-4">
-            <FolderOpen className="h-4 w-4 text-muted-foreground" />
+            <FolderOpen className="h-4 w-4 text-amber-500" />
             <h2 className="text-sm font-medium">Папки проектов</h2>
           </div>
           <div className="min-h-0 flex-1 overflow-y-auto p-2">
@@ -275,10 +279,10 @@ export function ProjectsView() {
                       key={project.id}
                       onClick={() => handleSelectProject(project.id)}
                       className={cn(
-                        'w-full rounded-lg px-3 py-2 text-left transition-colors',
+                        'w-full rounded-lg border-l-2 px-3 py-2 text-left transition-colors',
                         isActive
-                          ? 'bg-zinc-100 dark:bg-zinc-800'
-                          : 'hover:bg-zinc-100/70 dark:hover:bg-zinc-800/60'
+                          ? 'border-amber-500 bg-amber-500/10 dark:bg-amber-500/10'
+                          : 'border-transparent hover:bg-zinc-100/70 dark:hover:bg-zinc-800/60'
                       )}
                     >
                       <p className="truncate text-sm font-medium">{project.name}</p>
@@ -298,11 +302,12 @@ export function ProjectsView() {
         <motion.section
           initial={{ opacity: 0, y: 10 }}
           animate={{ opacity: 1, y: 0 }}
-          className="flex min-h-0 flex-col rounded-xl border border-border bg-card dark:bg-zinc-900/50"
+          className="relative flex min-h-0 flex-col overflow-hidden rounded-xl border border-border bg-card dark:bg-zinc-900/50"
         >
+          <div className="pointer-events-none absolute inset-x-0 top-0 h-[2px] bg-gradient-to-r from-sky-500/70 via-cyan-500/40 to-transparent" />
           <div className="flex shrink-0 items-center justify-between gap-2 border-b border-border p-4">
             <div className="flex items-center gap-2">
-              <HardDrive className="h-4 w-4 text-muted-foreground" />
+              <HardDrive className="h-4 w-4 text-sky-500" />
               <div>
                 <h2 className="text-sm font-medium">
                   {activeProject ? activeProject.name : 'Файлы проекта'}
@@ -317,7 +322,7 @@ export function ProjectsView() {
                 href={activeProject.webViewLink}
                 target="_blank"
                 rel="noreferrer"
-                className="inline-flex items-center gap-1 rounded-md border border-zinc-300 px-2 py-1 text-xs hover:bg-zinc-100 dark:border-zinc-700 dark:hover:bg-zinc-800"
+                className="inline-flex items-center gap-1 rounded-md border border-sky-300/60 px-2 py-1 text-xs text-sky-700 hover:bg-sky-50 dark:border-sky-700/60 dark:text-sky-300 dark:hover:bg-sky-900/20"
               >
                 Открыть
                 <ExternalLink className="h-3.5 w-3.5" />
@@ -339,7 +344,7 @@ export function ProjectsView() {
                   return (
                     <div
                       key={file.id}
-                      className="flex items-center gap-3 px-4 py-3 transition-colors hover:bg-zinc-100/60 dark:hover:bg-zinc-800/40"
+                      className="flex items-center gap-3 px-4 py-3 transition-colors hover:bg-sky-500/5 dark:hover:bg-sky-500/10"
                     >
                       {isFolder ? (
                         <Folder className="h-4 w-4 shrink-0 text-amber-500" />

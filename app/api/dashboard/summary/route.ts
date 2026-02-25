@@ -4,7 +4,7 @@ import { isAuthorizedRequest } from '@/lib/auth'
 type ServiceStatus = 'connected' | 'disconnected' | 'error'
 
 interface ServiceSummary {
-  id: 'gmail' | 'telegram' | 'x'
+  id: 'gmail' | 'telegram' | 'x' | 'fitbit'
   name: string
   status: ServiceStatus
   detail?: string
@@ -12,7 +12,7 @@ interface ServiceSummary {
 }
 
 interface ActivityItem {
-  source: 'gmail' | 'telegram' | 'x'
+  source: 'gmail' | 'telegram' | 'x' | 'fitbit'
   title: string
   time: string
 }
@@ -25,6 +25,9 @@ interface DashboardSummaryResponse {
     telegramSubscribers: number | null
     xFollowers: number | null
     xTweets: number | null
+    fitbitSteps: number | null
+    fitbitSleepMinutes: number | null
+    fitbitRestingHeartRate: number | null
   }
   services: ServiceSummary[]
   activities: ActivityItem[]
@@ -56,6 +59,29 @@ interface XLoadResult {
   activities: ActivityItem[]
 }
 
+interface FitbitLoadResult {
+  service: ServiceSummary & { id: 'fitbit' }
+  metrics: {
+    steps: number | null
+    sleepMinutes: number | null
+    restingHeartRate: number | null
+  }
+  activities: ActivityItem[]
+}
+
+interface FitbitStepsResponse {
+  'activities-steps'?: Array<{ value?: string }>
+}
+
+interface FitbitHeartResponse {
+  'activities-heart'?: Array<{ value?: { restingHeartRate?: number } }>
+}
+
+interface FitbitSleepResponse {
+  summary?: { totalMinutesAsleep?: number }
+  sleep?: Array<{ duration?: number }>
+}
+
 const REQUEST_TIMEOUT_MS = Number(process.env.DASHBOARD_REQUEST_TIMEOUT_MS || 8000)
 
 function toIsoTime(value?: string) {
@@ -63,6 +89,38 @@ function toIsoTime(value?: string) {
   const date = new Date(value)
   if (Number.isNaN(date.getTime())) return new Date().toISOString()
   return date.toISOString()
+}
+
+function toNumber(value: unknown): number | null {
+  if (typeof value === 'number' && Number.isFinite(value)) return value
+  if (typeof value === 'string') {
+    const parsed = Number(value.replace(/,/g, '').trim())
+    if (Number.isFinite(parsed)) return parsed
+  }
+  return null
+}
+
+function getDateInTimeZone(timeZone: string) {
+  try {
+    const parts = new Intl.DateTimeFormat('en-US', {
+      timeZone,
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+    }).formatToParts(new Date())
+
+    const year = parts.find((part) => part.type === 'year')?.value
+    const month = parts.find((part) => part.type === 'month')?.value
+    const day = parts.find((part) => part.type === 'day')?.value
+
+    if (year && month && day) {
+      return `${year}-${month}-${day}`
+    }
+  } catch {
+    // ignore invalid timezone
+  }
+
+  return new Date().toISOString().slice(0, 10)
 }
 
 async function fetchJson<T>(url: string, init?: RequestInit): Promise<T> {
@@ -83,6 +141,13 @@ async function fetchJson<T>(url: string, init?: RequestInit): Promise<T> {
       const message =
         (data && typeof data === 'object' && 'error' in data && typeof data.error === 'object'
           ? (data.error as { message?: string }).message
+          : null) ||
+        (data &&
+        typeof data === 'object' &&
+        'errors' in data &&
+        Array.isArray((data as { errors?: unknown }).errors) &&
+        (data as { errors: Array<{ message?: string }> }).errors[0]?.message
+          ? String((data as { errors: Array<{ message?: string }> }).errors[0]?.message)
           : null) ||
         (data && typeof data === 'object' && 'description' in data
           ? String((data as { description?: unknown }).description)
@@ -314,6 +379,133 @@ async function loadX(): Promise<XLoadResult> {
   }
 }
 
+async function loadFitbit(): Promise<FitbitLoadResult> {
+  const token = process.env.FITBIT_ACCESS_TOKEN
+  const userId = process.env.FITBIT_USER_ID || '-'
+  const timeZone = process.env.FITBIT_TIMEZONE || 'UTC'
+
+  if (!token) {
+    return {
+      service: {
+        id: 'fitbit',
+        name: 'Fitbit',
+        status: 'disconnected' as const,
+        detail: 'Нужен FITBIT_ACCESS_TOKEN',
+      },
+      metrics: {
+        steps: null as number | null,
+        sleepMinutes: null as number | null,
+        restingHeartRate: null as number | null,
+      },
+      activities: [] as ActivityItem[],
+    }
+  }
+
+  const date = getDateInTimeZone(timeZone)
+  const encodedUserId = encodeURIComponent(userId)
+  const headers = { authorization: `Bearer ${token}` }
+
+  const [stepsResult, sleepResult, heartResult] = await Promise.allSettled([
+    fetchJson<FitbitStepsResponse>(
+      `https://api.fitbit.com/1/user/${encodedUserId}/activities/steps/date/${date}/${date}.json`,
+      { headers }
+    ),
+    fetchJson<FitbitSleepResponse>(
+      `https://api.fitbit.com/1.2/user/${encodedUserId}/sleep/date/${date}.json`,
+      { headers }
+    ),
+    fetchJson<FitbitHeartResponse>(
+      `https://api.fitbit.com/1/user/${encodedUserId}/activities/heart/date/${date}/${date}.json`,
+      { headers }
+    ),
+  ])
+
+  const errors: string[] = []
+  let steps: number | null = null
+  let sleepMinutes: number | null = null
+  let restingHeartRate: number | null = null
+
+  if (stepsResult.status === 'fulfilled') {
+    steps = toNumber(stepsResult.value['activities-steps']?.[0]?.value)
+  } else {
+    errors.push(stepsResult.reason instanceof Error ? stepsResult.reason.message : 'steps')
+  }
+
+  if (sleepResult.status === 'fulfilled') {
+    sleepMinutes = toNumber(sleepResult.value.summary?.totalMinutesAsleep)
+    if (sleepMinutes === null) {
+      const durationMs = toNumber(sleepResult.value.sleep?.[0]?.duration)
+      sleepMinutes = durationMs !== null ? Math.round(durationMs / 60000) : null
+    }
+  } else {
+    errors.push(sleepResult.reason instanceof Error ? sleepResult.reason.message : 'sleep')
+  }
+
+  if (heartResult.status === 'fulfilled') {
+    restingHeartRate = toNumber(heartResult.value['activities-heart']?.[0]?.value?.restingHeartRate)
+  } else {
+    errors.push(heartResult.reason instanceof Error ? heartResult.reason.message : 'heart')
+  }
+
+  const availableMetrics = [steps, sleepMinutes, restingHeartRate].filter(
+    (value): value is number => typeof value === 'number'
+  )
+
+  const activities: ActivityItem[] = []
+  if (steps !== null) {
+    activities.push({
+      source: 'fitbit',
+      title: `Fitbit: ${steps.toLocaleString('ru-RU')} шагов`,
+      time: new Date().toISOString(),
+    })
+  }
+  if (sleepMinutes !== null) {
+    activities.push({
+      source: 'fitbit',
+      title: `Fitbit: сон ${(sleepMinutes / 60).toFixed(1)} ч`,
+      time: new Date().toISOString(),
+    })
+  }
+  if (restingHeartRate !== null) {
+    activities.push({
+      source: 'fitbit',
+      title: `Fitbit: пульс покоя ${restingHeartRate} bpm`,
+      time: new Date().toISOString(),
+    })
+  }
+
+  if (availableMetrics.length === 0 && errors.length > 0) {
+    return {
+      service: {
+        id: 'fitbit',
+        name: 'Fitbit',
+        status: 'error' as const,
+        detail: errors[0],
+      },
+      metrics: { steps, sleepMinutes, restingHeartRate },
+      activities,
+    }
+  }
+
+  const detailParts: string[] = []
+  if (steps !== null) detailParts.push(`${steps.toLocaleString('ru-RU')} шагов`)
+  if (sleepMinutes !== null) detailParts.push(`${(sleepMinutes / 60).toFixed(1)} ч сна`)
+  if (restingHeartRate !== null) detailParts.push(`${restingHeartRate} bpm`)
+  if (errors.length > 0) detailParts.push('частично')
+
+  return {
+    service: {
+      id: 'fitbit',
+      name: 'Fitbit',
+      status: 'connected' as const,
+      detail: detailParts.join(' • ') || 'Подключено',
+      lastSync: new Date().toISOString(),
+    },
+    metrics: { steps, sleepMinutes, restingHeartRate },
+    activities,
+  }
+}
+
 export const dynamic = 'force-dynamic'
 
 export async function GET(req: NextRequest) {
@@ -321,7 +513,12 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: 'Требуется авторизация' }, { status: 401 })
   }
 
-  const [gmail, telegram, x] = await Promise.all([loadGmail(), loadTelegram(), loadX()])
+  const [gmail, telegram, x, fitbit] = await Promise.all([
+    loadGmail(),
+    loadTelegram(),
+    loadX(),
+    loadFitbit(),
+  ])
 
   const response: DashboardSummaryResponse = {
     generatedAt: new Date().toISOString(),
@@ -331,9 +528,12 @@ export async function GET(req: NextRequest) {
       telegramSubscribers: telegram.metrics.subscribers,
       xFollowers: x.metrics.followers,
       xTweets: x.metrics.tweets,
+      fitbitSteps: fitbit.metrics.steps,
+      fitbitSleepMinutes: fitbit.metrics.sleepMinutes,
+      fitbitRestingHeartRate: fitbit.metrics.restingHeartRate,
     },
-    services: [gmail.service, telegram.service, x.service],
-    activities: [...gmail.activities, ...telegram.activities, ...x.activities]
+    services: [gmail.service, telegram.service, x.service, fitbit.service],
+    activities: [...gmail.activities, ...telegram.activities, ...x.activities, ...fitbit.activities]
       .sort((a, b) => new Date(b.time).getTime() - new Date(a.time).getTime())
       .slice(0, 8),
   }

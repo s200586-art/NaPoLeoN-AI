@@ -5,15 +5,17 @@ import { motion } from 'framer-motion'
 import {
   AlertTriangle,
   Inbox,
-  Mail, 
-  Send, 
-  Twitter, 
+  Mail,
+  Send,
+  Twitter,
   Users,
   RefreshCw,
+  Watch,
+  Heart,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
-type ServiceId = 'gmail' | 'telegram' | 'x'
+type ServiceId = 'gmail' | 'telegram' | 'x' | 'fitbit'
 type ServiceStatus = 'connected' | 'disconnected' | 'error'
 
 interface ServiceSummary {
@@ -38,6 +40,9 @@ interface DashboardSummary {
     telegramSubscribers: number | null
     xFollowers: number | null
     xTweets: number | null
+    fitbitSteps: number | null
+    fitbitSleepMinutes: number | null
+    fitbitRestingHeartRate: number | null
   }
   services: ServiceSummary[]
   activities: ActivityItem[]
@@ -88,21 +93,42 @@ interface MetricCardProps {
   subtitle?: string
   icon: React.ElementType
   loading?: boolean
+  accentClassName?: string
+  glowClassName?: string
+  iconClassName?: string
+  iconColorClassName?: string
   className?: string
 }
 
-function MetricCard({ title, value, subtitle, icon: Icon, loading = false, className }: MetricCardProps) {
+function MetricCard({
+  title,
+  value,
+  subtitle,
+  icon: Icon,
+  loading = false,
+  accentClassName,
+  glowClassName,
+  iconClassName,
+  iconColorClassName,
+  className,
+}: MetricCardProps) {
   return (
     <motion.div
       initial={{ opacity: 0, y: 10 }}
       animate={{ opacity: 1, y: 0 }}
       className={cn(
-        'p-5 rounded-xl border border-border bg-card dark:bg-zinc-900/50',
+        'relative overflow-hidden rounded-xl border border-border bg-card p-5 dark:bg-zinc-900/50',
         'hover:border-zinc-300 dark:hover:border-zinc-700',
         'transition-colors duration-150',
         className
       )}
     >
+      {accentClassName && (
+        <div className={cn('pointer-events-none absolute inset-x-0 top-0 h-[2px] bg-gradient-to-r', accentClassName)} />
+      )}
+      {glowClassName && (
+        <div className={cn('pointer-events-none absolute -right-8 -top-10 h-24 w-24 rounded-full blur-2xl opacity-20', glowClassName)} />
+      )}
       <div className="flex items-start justify-between">
         <div>
           <p className="text-sm font-medium text-muted-foreground">{title}</p>
@@ -115,8 +141,8 @@ function MetricCard({ title, value, subtitle, icon: Icon, loading = false, class
             <p className="text-xs text-muted-foreground mt-1">{subtitle}</p>
           )}
         </div>
-        <div className="p-2 rounded-lg bg-zinc-100 dark:bg-zinc-800">
-          <Icon className="h-5 w-5 text-muted-foreground" />
+        <div className={cn('rounded-lg p-2 bg-zinc-100 dark:bg-zinc-800', iconClassName)}>
+          <Icon className={cn('h-5 w-5 text-muted-foreground', iconColorClassName)} />
         </div>
       </div>
     </motion.div>
@@ -184,19 +210,29 @@ const FALLBACK_SERVICES: Record<ServiceId, ServiceSummary> = {
   gmail: { id: 'gmail', name: 'Gmail', status: 'disconnected', detail: 'Не подключено' },
   telegram: { id: 'telegram', name: 'Telegram', status: 'disconnected', detail: 'Не подключено' },
   x: { id: 'x', name: 'X (Twitter)', status: 'disconnected', detail: 'Не подключено' },
+  fitbit: { id: 'fitbit', name: 'Fitbit', status: 'disconnected', detail: 'Не подключено' },
 }
 
-const SERVICE_ORDER: ServiceId[] = ['gmail', 'telegram', 'x']
+const SERVICE_ORDER: ServiceId[] = ['gmail', 'telegram', 'x', 'fitbit']
 const SERVICE_COLORS: Record<ServiceId, string> = {
   gmail: 'bg-red-500',
   telegram: 'bg-blue-500',
   x: 'bg-zinc-700',
+  fitbit: 'bg-emerald-500',
 }
 
 const SOURCE_ICONS: Record<ServiceId, React.ElementType> = {
   gmail: Mail,
   telegram: Send,
   x: Twitter,
+  fitbit: Watch,
+}
+
+const SOURCE_ICON_COLORS: Record<ServiceId, string> = {
+  gmail: 'text-red-500',
+  telegram: 'text-blue-500',
+  x: 'text-zinc-500',
+  fitbit: 'text-emerald-500',
 }
 
 export function DashboardView() {
@@ -281,6 +317,9 @@ export function DashboardView() {
     <div className="h-full min-h-0 overflow-y-auto p-6">
       <div className="mb-6 flex items-start justify-between gap-4">
         <div>
+          <div className="mb-2 inline-flex items-center rounded-full border border-sky-500/30 bg-sky-500/10 px-2 py-1 text-[11px] font-medium text-sky-600 dark:text-sky-300">
+            Live widgets
+          </div>
           <h1 className="text-2xl font-semibold">Дашборд</h1>
           <p className="mt-1 text-muted-foreground">Обзор подключённых сервисов и активности</p>
           <p className="mt-1 text-xs text-muted-foreground">
@@ -310,7 +349,7 @@ export function DashboardView() {
         </div>
       )}
 
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
+      <div className="mb-8 grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
         <MetricCard
           title="Письма (Inbox)"
           value={formatMetric(metrics?.gmailTotal)}
@@ -321,6 +360,10 @@ export function DashboardView() {
           }
           icon={Mail}
           loading={isLoading && !summary}
+          accentClassName="from-red-500/70 via-rose-500/40 to-transparent"
+          glowClassName="bg-red-500"
+          iconClassName="bg-red-500/10 dark:bg-red-500/15"
+          iconColorClassName="text-red-500"
         />
         <MetricCard
           title="Непрочитанные"
@@ -328,6 +371,10 @@ export function DashboardView() {
           subtitle="Gmail"
           icon={Inbox}
           loading={isLoading && !summary}
+          accentClassName="from-orange-500/70 via-amber-500/40 to-transparent"
+          glowClassName="bg-orange-500"
+          iconClassName="bg-orange-500/10 dark:bg-orange-500/15"
+          iconColorClassName="text-orange-500"
         />
         <MetricCard
           title="Подписчики Telegram"
@@ -335,6 +382,10 @@ export function DashboardView() {
           subtitle="Сумма по каналам"
           icon={Users}
           loading={isLoading && !summary}
+          accentClassName="from-blue-500/70 via-cyan-500/40 to-transparent"
+          glowClassName="bg-blue-500"
+          iconClassName="bg-blue-500/10 dark:bg-blue-500/15"
+          iconColorClassName="text-blue-500"
         />
         <MetricCard
           title="Подписчики X"
@@ -346,6 +397,40 @@ export function DashboardView() {
           }
           icon={Twitter}
           loading={isLoading && !summary}
+          accentClassName="from-zinc-500/70 via-zinc-400/40 to-transparent"
+          glowClassName="bg-zinc-500"
+          iconClassName="bg-zinc-500/10 dark:bg-zinc-500/15"
+          iconColorClassName="text-zinc-500"
+        />
+        <MetricCard
+          title="Шаги Fitbit"
+          value={formatMetric(metrics?.fitbitSteps)}
+          subtitle={
+            typeof metrics?.fitbitSleepMinutes === 'number'
+              ? `Сон ${(metrics.fitbitSleepMinutes / 60).toFixed(1)} ч`
+              : 'Нет данных по сну'
+          }
+          icon={Watch}
+          loading={isLoading && !summary}
+          accentClassName="from-emerald-500/70 via-teal-500/40 to-transparent"
+          glowClassName="bg-emerald-500"
+          iconClassName="bg-emerald-500/10 dark:bg-emerald-500/15"
+          iconColorClassName="text-emerald-500"
+        />
+        <MetricCard
+          title="Пульс покоя"
+          value={
+            typeof metrics?.fitbitRestingHeartRate === 'number'
+              ? `${metrics.fitbitRestingHeartRate.toLocaleString('ru-RU')} bpm`
+              : '—'
+          }
+          subtitle="Fitbit за сегодня"
+          icon={Heart}
+          loading={isLoading && !summary}
+          accentClassName="from-fuchsia-500/70 via-pink-500/40 to-transparent"
+          glowClassName="bg-fuchsia-500"
+          iconClassName="bg-fuchsia-500/10 dark:bg-fuchsia-500/15"
+          iconColorClassName="text-fuchsia-500"
         />
       </div>
 
@@ -384,7 +469,7 @@ export function DashboardView() {
               transition={{ delay: index * 0.05 }}
               className="flex items-center gap-3 p-4"
             >
-              <Icon className="h-4 w-4 text-muted-foreground" />
+              <Icon className={cn('h-4 w-4', SOURCE_ICON_COLORS[item.source])} />
               <span className="flex-1 text-sm">{item.title}</span>
               <span className="text-xs text-muted-foreground">{formatRelativeTime(item.time)}</span>
             </motion.div>
