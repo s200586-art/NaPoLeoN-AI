@@ -50,3 +50,11 @@ npm run dev
   - Claude export (`chat_messages` / `messages`)
   - Gemini export (`conversations` / `messages` / `contents`)
   - generic JSON с массивом `messages` для каждого диалога
+
+## PWA (Android)
+- Приложение поддерживает установку как PWA через браузер Chrome на Android.
+- Добавлены:
+  - `app/manifest.ts` (`/manifest.webmanifest`)
+  - `public/sw.js` (service worker)
+  - `components/pwa/PWAInstallPrompt.tsx` (кнопка установки в интерфейсе)
+- Для установки нужен HTTPS-домен и актуальный деплой.

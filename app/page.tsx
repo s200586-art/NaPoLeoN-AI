@@ -9,6 +9,7 @@ import { ChatCanvas } from '@/components/chat/ChatCanvas'
 import { MultiAgentView } from '@/components/features/MultiAgentView'
 import { DashboardView } from '@/components/features/DashboardView'
 import { ProjectsView } from '@/components/features/ProjectsView'
+import { PWAInstallPrompt } from '@/components/pwa/PWAInstallPrompt'
 
 export default function Home() {
   const router = useRouter()
@@ -92,6 +93,8 @@ export default function Home() {
 
       {/* Right Panel */}
       <LivePanel />
+
+      <PWAInstallPrompt />
     </div>
   )
 }
