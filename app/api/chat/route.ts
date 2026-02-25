@@ -1,7 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-
-// Server-side session store (survives multiple requests within same deployment instance)
-const sessionStore = new Map<string, Array<{ role: string; content: string }>>()
+import { getSessionHistory, saveSessionHistory } from '@/lib/session-memory'
 
 // Napoleon AI persona system prompt
 const NAPOLEON_SYSTEM = `Ты — Наполи (Наполеон), персональный AI-ассистент и бизнес-партнёр Сергея Стыценко.
@@ -29,18 +27,93 @@ const NAPOLEON_SYSTEM = `Ты — Наполи (Наполеон), персон�
 ## Контекст сессии
 Это веб-интерфейс NaPoLeoN AI Command Center — персональный инструмент Сергея.`
 
+interface IncomingAttachment {
+  name: string
+  type?: string
+  size?: number
+  textContent?: string
+}
+
+const DEFAULT_MODEL = process.env.OPENCLAW_MODEL || 'anthropic/claude-sonnet-4-6'
+const MAX_ATTACHMENTS = 6
+const MAX_ATTACHMENT_TEXT = 12000
+
+function normalizeAnswerContent(content: unknown): string | null {
+  if (typeof content === 'string') {
+    return content
+  }
+  if (Array.isArray(content)) {
+    const text = content
+      .map((part) => {
+        if (typeof part === 'string') return part
+        if (part && typeof part === 'object' && 'text' in part) {
+          const maybeText = (part as { text?: unknown }).text
+          return typeof maybeText === 'string' ? maybeText : ''
+        }
+        return ''
+      })
+      .join('\n')
+      .trim()
+    return text || null
+  }
+  return null
+}
+
+function buildAttachmentContext(attachments: IncomingAttachment[]) {
+  if (attachments.length === 0) return ''
+
+  let remainingTextBudget = MAX_ATTACHMENT_TEXT
+  const lines: string[] = ['Вложения пользователя:']
+
+  for (const attachment of attachments.slice(0, MAX_ATTACHMENTS)) {
+    const sizeLabel =
+      typeof attachment.size === 'number' && Number.isFinite(attachment.size)
+        ? `${Math.round(attachment.size / 1024)} KB`
+        : 'размер неизвестен'
+    lines.push(`- ${attachment.name} (${attachment.type || 'unknown'}, ${sizeLabel})`)
+
+    const textContent = attachment.textContent?.trim()
+    if (!textContent || remainingTextBudget <= 0) {
+      continue
+    }
+
+    const snippet = textContent.slice(0, Math.min(remainingTextBudget, 4000))
+    remainingTextBudget -= snippet.length
+    lines.push(`Содержимое ${attachment.name}:\n${snippet}`)
+  }
+
+  return lines.join('\n')
+}
+
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json()
-    const { message, sessionId } = body as { message: string; sessionId?: string }
+    const { message, sessionId, model, attachments } = body as {
+      message?: string
+      sessionId?: string
+      model?: string
+      attachments?: IncomingAttachment[]
+    }
 
-    if (!message?.trim()) {
+    const normalizedMessage = message?.trim() || ''
+    const normalizedAttachments = Array.isArray(attachments)
+      ? attachments
+          .slice(0, MAX_ATTACHMENTS)
+          .filter((attachment) => attachment?.name && typeof attachment.name === 'string')
+      : []
+    const attachmentContext = buildAttachmentContext(normalizedAttachments)
+    const prompt =
+      normalizedMessage ||
+      (normalizedAttachments.length > 0 ? 'Проанализируй прикреплённые файлы.' : '')
+    const userContent = [prompt, attachmentContext].filter(Boolean).join('\n\n')
+
+    if (!userContent) {
       return NextResponse.json({ error: 'Пустое сообщение' }, { status: 400 })
     }
 
     const gatewayUrl = process.env.OPENCLAW_GATEWAY_URL
     const gatewayToken = process.env.OPENCLAW_GATEWAY_TOKEN
-    const model = process.env.OPENCLAW_MODEL || 'anthropic/claude-sonnet-4-6'
+    const selectedModel = model?.trim() || DEFAULT_MODEL
 
     if (!gatewayUrl || !gatewayToken) {
       return NextResponse.json(
@@ -49,15 +122,11 @@ export async function POST(req: NextRequest) {
       )
     }
 
-    // Get or create session history
     const sid = sessionId || 'default'
-    if (!sessionStore.has(sid)) {
-      sessionStore.set(sid, [])
-    }
-    const history = sessionStore.get(sid)!
+    const history = await getSessionHistory(sid)
 
     // Add user message to history
-    history.push({ role: 'user', content: message })
+    history.push({ role: 'user', content: userContent })
 
     // Keep last 20 messages to avoid token overflow
     const recentHistory = history.slice(-20)
@@ -76,7 +145,7 @@ export async function POST(req: NextRequest) {
         authorization: `Bearer ${gatewayToken}`,
       },
       body: JSON.stringify({
-        model,
+        model: selectedModel,
         messages,
         temperature: 0.3,
         max_tokens: 2000,
@@ -99,7 +168,7 @@ export async function POST(req: NextRequest) {
       )
     }
 
-    const answer = data?.choices?.[0]?.message?.content
+    const answer = normalizeAnswerContent(data?.choices?.[0]?.message?.content)
     if (!answer) {
       return NextResponse.json(
         {
@@ -118,7 +187,9 @@ export async function POST(req: NextRequest) {
       history.splice(0, history.length - 40)
     }
 
-    return NextResponse.json({ answer, sessionId: sid })
+    await saveSessionHistory(sid, history)
+
+    return NextResponse.json({ answer, sessionId: sid, model: selectedModel })
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Неизвестная ошибка'
     return NextResponse.json({ error: message }, { status: 500 })

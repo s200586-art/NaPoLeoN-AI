@@ -16,8 +16,6 @@ export default function Home() {
     setAuthenticated, 
     viewMode, 
     theme,
-    sidebarOpen,
-    rightPanelOpen
   } = useAppStore()
 
   useEffect(() => {
@@ -62,18 +60,12 @@ export default function Home() {
   }
 
   return (
-    <div className="flex h-screen overflow-hidden bg-background">
+    <div className="flex h-[100dvh] min-h-0 overflow-hidden bg-background">
       {/* Left Sidebar */}
       <Sidebar />
 
       {/* Main Content */}
-      <main 
-        className="flex-1 relative overflow-hidden"
-        style={{
-          marginLeft: sidebarOpen ? 0 : 0,
-          marginRight: rightPanelOpen ? 0 : 0,
-        }}
-      >
+      <main className="relative min-h-0 min-w-0 flex-1 overflow-hidden">
         {renderContent()}
       </main>
 

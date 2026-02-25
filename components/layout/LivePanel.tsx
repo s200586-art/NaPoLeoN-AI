@@ -2,7 +2,7 @@
 
 import React, { useEffect, useRef } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { ChevronRight, Terminal, Code, Trash2, Copy, Check } from 'lucide-react'
+import { ChevronRight, Terminal, Trash2, Copy, Check } from 'lucide-react'
 import { useAppStore } from '@/lib/store'
 import { cn, formatDate } from '@/lib/utils'
 import { Button } from '@/components/ui/Button'
@@ -48,61 +48,63 @@ export function LivePanel({ className }: LivePanelProps) {
       animate={{ width: rightPanelOpen ? 320 : 48 }}
       transition={{ duration: 0.2, ease: 'easeInOut' }}
       className={cn(
-        'flex flex-col h-full border-l border-border bg-card dark:bg-zinc-900/50',
+        'flex h-full min-h-0 shrink-0 flex-col overflow-hidden border-l border-border bg-card dark:bg-zinc-900/50',
         className
       )}
     >
       {/* Header */}
-      <div className="flex items-center justify-between p-3 border-b border-border">
-        <AnimatePresence mode="wait">
-          {rightPanelOpen && (
-            <motion.div
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              className="flex items-center gap-2"
+      <div className="shrink-0 border-b border-border p-3">
+        <div className="flex items-center justify-between">
+          <AnimatePresence mode="wait">
+            {rightPanelOpen && (
+              <motion.div
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                className="flex items-center gap-2"
+              >
+                <Terminal className="h-4 w-4 text-muted-foreground" />
+                <span className="text-sm font-medium">Живые логи</span>
+              </motion.div>
+            )}
+          </AnimatePresence>
+          <div className="flex items-center gap-1">
+            {rightPanelOpen && (
+              <>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  onClick={copyLogs}
+                  className="h-7 w-7"
+                  title="Копировать логи"
+                >
+                  {copied ? <Check className="h-3.5 w-3.5" /> : <Copy className="h-3.5 w-3.5" />}
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  onClick={clearLogs}
+                  className="h-7 w-7"
+                  title="Очистить логи"
+                >
+                  <Trash2 className="h-3.5 w-3.5" />
+                </Button>
+              </>
+            )}
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={() => setRightPanelOpen(!rightPanelOpen)}
+              className="h-8 w-8"
             >
-              <Terminal className="h-4 w-4 text-muted-foreground" />
-              <span className="text-sm font-medium">Живые логи</span>
-            </motion.div>
-          )}
-        </AnimatePresence>
-        <div className="flex items-center gap-1">
-          {rightPanelOpen && (
-            <>
-              <Button
-                variant="ghost"
-                size="icon"
-                onClick={copyLogs}
-                className="h-7 w-7"
-                title="Копировать логи"
-              >
-                {copied ? <Check className="h-3.5 w-3.5" /> : <Copy className="h-3.5 w-3.5" />}
-              </Button>
-              <Button
-                variant="ghost"
-                size="icon"
-                onClick={clearLogs}
-                className="h-7 w-7"
-                title="Очистить логи"
-              >
-                <Trash2 className="h-3.5 w-3.5" />
-              </Button>
-            </>
-          )}
-          <Button
-            variant="ghost"
-            size="icon"
-            onClick={() => setRightPanelOpen(!rightPanelOpen)}
-            className="h-8 w-8"
-          >
-            <ChevronRight
-              className={cn(
-                'h-4 w-4 transition-transform duration-200',
-                rightPanelOpen && 'rotate-180'
-              )}
-            />
-          </Button>
+              <ChevronRight
+                className={cn(
+                  'h-4 w-4 transition-transform duration-200',
+                  rightPanelOpen && 'rotate-180'
+                )}
+              />
+            </Button>
+          </div>
         </div>
       </div>
 
@@ -113,7 +115,7 @@ export function LivePanel({ className }: LivePanelProps) {
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className="flex-1 overflow-y-auto p-3 font-mono text-xs"
+            className="flex-1 min-h-0 overflow-y-auto p-3 font-mono text-xs"
           >
             {logs.length === 0 ? (
               <div className="flex flex-col items-center justify-center h-full text-muted-foreground">

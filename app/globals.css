@@ -62,10 +62,16 @@
   body {
     @apply bg-background text-foreground font-sans antialiased;
     font-family: var(--font-manrope);
+    overflow-x: hidden;
   }
 
   html {
     scroll-behavior: smooth;
+  }
+
+  html,
+  body {
+    height: 100%;
   }
 
   ::-webkit-scrollbar {

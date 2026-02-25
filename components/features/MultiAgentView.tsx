@@ -114,20 +114,20 @@ export function MultiAgentView() {
   const { agents } = useAppStore()
 
   return (
-    <div className="h-full p-6 overflow-y-auto">
-      <div className="mb-6">
+    <div className="flex h-full min-h-0 flex-col p-6">
+      <div className="mb-6 shrink-0">
         <h1 className="text-2xl font-semibold">Мультиагент</h1>
         <p className="text-muted-foreground mt-1">Координация нескольких ИИ-агентов для сложных задач</p>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 h-[calc(100%-80px)]">
+      <div className="grid flex-1 min-h-0 grid-cols-1 gap-4 overflow-y-auto md:grid-cols-2 lg:grid-cols-3">
         {agents.map((agent, index) => (
           <motion.div
             key={agent.id}
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: index * 0.1 }}
-            className="h-full"
+            className="min-h-0"
           >
             <AgentColumn agent={agent} />
           </motion.div>

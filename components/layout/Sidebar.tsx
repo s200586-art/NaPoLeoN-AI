@@ -6,7 +6,7 @@ import {
   Bot,
   LayoutDashboard,
   Plus,
-  Settings,
+  Trash2,
   ChevronLeft,
   ChevronRight,
   Sun,
@@ -34,7 +34,7 @@ export function Sidebar({ className }: SidebarProps) {
     activeChat,
     setActiveChat,
     addChat,
-    isAuthenticated,
+    removeChat,
     setAuthenticated,
   } = useAppStore()
 
@@ -61,7 +61,7 @@ export function Sidebar({ className }: SidebarProps) {
       animate={{ width: sidebarOpen ? 260 : 72 }}
       transition={{ duration: 0.2, ease: 'easeInOut' }}
       className={cn(
-        'flex flex-col h-full border-r border-border bg-card dark:bg-zinc-900/50',
+        'flex h-full min-h-0 shrink-0 flex-col overflow-hidden border-r border-border bg-card dark:bg-zinc-900/50',
         className
       )}
     >
@@ -105,7 +105,7 @@ export function Sidebar({ className }: SidebarProps) {
       </div>
 
       {/* Navigation */}
-      <nav className="flex-1 px-3 py-2 space-y-1">
+      <nav className="shrink-0 px-3 py-2 space-y-1">
         {navItems.map((item) => {
           const Icon = item.icon
           const isActive = viewMode === item.id
@@ -130,35 +130,48 @@ export function Sidebar({ className }: SidebarProps) {
 
       {/* Chat History */}
       {sidebarOpen && (
-        <div className="flex-1 px-3 py-2 overflow-y-auto">
+        <div className="flex-1 min-h-0 overflow-y-auto px-3 py-2">
           <p className="px-3 py-2 text-xs font-medium text-muted-foreground uppercase tracking-wider">
             Последние чаты
           </p>
           <div className="space-y-1">
-            {chats.slice(0, 5).map((chat) => (
-              <button
-                key={chat.id}
-                onClick={() => {
-                  setActiveChat(chat)
-                  setViewMode('chat')
-                }}
-                className={cn(
-                  'w-full flex items-center gap-2 px-3 py-2 rounded-lg text-sm text-left transition-all duration-150 truncate',
-                  activeChat?.id === chat.id
-                    ? 'bg-zinc-100 dark:bg-zinc-800'
-                    : 'hover:bg-zinc-100 dark:hover:bg-zinc-800/50 text-muted-foreground hover:text-foreground'
-                )}
-              >
-                <MessageSquare className="h-4 w-4 shrink-0" />
-                <span className="truncate">{chat.title}</span>
-              </button>
+            {chats.map((chat) => (
+              <div key={chat.id} className="group relative">
+                <button
+                  onClick={() => {
+                    setActiveChat(chat)
+                    setViewMode('chat')
+                  }}
+                  className={cn(
+                    'w-full flex items-center gap-2 px-3 py-2 pr-10 rounded-lg text-sm text-left transition-all duration-150 truncate',
+                    activeChat?.id === chat.id
+                      ? 'bg-zinc-100 dark:bg-zinc-800'
+                      : 'hover:bg-zinc-100 dark:hover:bg-zinc-800/50 text-muted-foreground hover:text-foreground'
+                  )}
+                >
+                  <MessageSquare className="h-4 w-4 shrink-0" />
+                  <span className="truncate">{chat.title}</span>
+                </button>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="absolute right-1 top-1/2 h-7 w-7 -translate-y-1/2 text-muted-foreground opacity-0 transition-opacity hover:text-red-500 group-hover:opacity-100"
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    removeChat(chat.id)
+                  }}
+                  title="Удалить чат"
+                >
+                  <Trash2 className="h-3.5 w-3.5" />
+                </Button>
+              </div>
             ))}
           </div>
         </div>
       )}
 
       {/* Footer */}
-      <div className="p-3 border-t border-border space-y-2">
+      <div className="shrink-0 space-y-2 border-t border-border p-3">
         <Button
           variant="ghost"
           size="sm"

@@ -6,12 +6,20 @@ import { persist } from 'zustand/middleware'
 export type Theme = 'light' | 'dark' | 'system'
 export type ViewMode = 'chat' | 'agents' | 'dashboard'
 
+export interface MessageAttachment {
+  id: string
+  name: string
+  size: number
+  type: string
+}
+
 export interface Message {
   id: string
   role: 'user' | 'assistant'
   content: string
   timestamp: Date
   isStreaming?: boolean
+  attachments?: MessageAttachment[]
 }
 
 export interface Chat {
@@ -63,9 +71,14 @@ interface AppState {
   activeChat: Chat | null
   setActiveChat: (chat: Chat | null) => void
   addChat: (chat: Chat) => void
+  removeChat: (id: string) => void
   updateChat: (id: string, updates: Partial<Chat>) => void
   addMessage: (chatId: string, message: Message) => void
-  updateMessage: (chatId: string, messageId: string, content: string) => void
+  updateMessage: (chatId: string, messageId: string, content: string, isStreaming?: boolean) => void
+
+  // Model
+  selectedModel: string
+  setSelectedModel: (model: string) => void
 
   // Agents
   agents: Agent[]
@@ -119,6 +132,14 @@ export const useAppStore = create<AppState>()(
         chats: [chat, ...state.chats],
         activeChat: chat 
       })),
+      removeChat: (id) => set((state) => {
+        const nextChats = state.chats.filter((chat) => chat.id !== id)
+        const activeRemoved = state.activeChat?.id === id
+        return {
+          chats: nextChats,
+          activeChat: activeRemoved ? (nextChats[0] ?? null) : state.activeChat,
+        }
+      }),
       updateChat: (id, updates) => set((state) => ({
         chats: state.chats.map(c => c.id === id ? { ...c, ...updates } : c),
         activeChat: state.activeChat?.id === id 
@@ -143,13 +164,13 @@ export const useAppStore = create<AppState>()(
             : state.activeChat
         }
       }),
-      updateMessage: (chatId, messageId, content) => set((state) => {
+      updateMessage: (chatId, messageId, content, isStreaming = false) => set((state) => {
         const updatedChats = state.chats.map(chat => {
           if (chat.id === chatId) {
             return {
               ...chat,
               messages: chat.messages.map(msg => 
-                msg.id === messageId ? { ...msg, content } : msg
+                msg.id === messageId ? { ...msg, content, isStreaming } : msg
               )
             }
           }
@@ -161,12 +182,16 @@ export const useAppStore = create<AppState>()(
             ? {
                 ...state.activeChat,
                 messages: state.activeChat.messages.map(msg =>
-                  msg.id === messageId ? { ...msg, content } : msg
+                  msg.id === messageId ? { ...msg, content, isStreaming } : msg
                 )
               }
             : state.activeChat
         }
       }),
+
+      // Model
+      selectedModel: 'anthropic/claude-sonnet-4-6',
+      setSelectedModel: (model) => set({ selectedModel: model }),
 
       // Agents
       agents: [
@@ -195,7 +220,30 @@ export const useAppStore = create<AppState>()(
         chats: state.chats,
         sidebarOpen: state.sidebarOpen,
         rightPanelOpen: state.rightPanelOpen,
+        selectedModel: state.selectedModel,
       }),
+      merge: (persistedState, currentState) => {
+        const typedState = persistedState as Partial<AppState>
+        const normalizedChats = (typedState.chats ?? []).map((chat) => ({
+          ...chat,
+          messages: (chat.messages ?? []).map((message) => ({
+            ...message,
+            isStreaming: false,
+            attachments: (message.attachments ?? []).map((attachment) => ({
+              id: attachment.id,
+              name: attachment.name,
+              size: attachment.size,
+              type: attachment.type,
+            })),
+          })),
+        }))
+
+        return {
+          ...currentState,
+          ...typedState,
+          chats: normalizedChats,
+        }
+      },
     }
   )
 )

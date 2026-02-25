@@ -109,7 +109,7 @@ function ServiceCard({ name, status, lastSync, icon: Icon, color, className }: S
 
 export function DashboardView() {
   return (
-    <div className="h-full p-6 overflow-y-auto">
+    <div className="h-full min-h-0 overflow-y-auto p-6">
       <div className="mb-6">
         <h1 className="text-2xl font-semibold">Дашборд</h1>
         <p className="text-muted-foreground mt-1">Обзор подключённых сервисов и активности</p>
