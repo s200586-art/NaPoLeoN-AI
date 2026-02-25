@@ -303,6 +303,7 @@ export function ChatCanvas({ className }: ChatCanvasProps) {
   }
 
   const hasMessages = Boolean(activeChat && activeChat.messages.length > 0)
+  const activeChatId = activeChat?.id ?? null
 
   return (
     <div className={cn('flex h-full min-h-0 flex-col', className)}>
@@ -311,7 +312,7 @@ export function ChatCanvas({ className }: ChatCanvasProps) {
           <div className="pointer-events-none absolute inset-x-0 top-0 mx-auto h-20 w-full max-w-4xl bg-gradient-to-b from-sky-500/10 via-transparent to-transparent" />
           <div className="mx-auto flex w-full max-w-4xl flex-col gap-6">
             {activeChat?.messages.map((message) => (
-              <MessageBubble key={message.id} message={message} />
+              <MessageBubble key={message.id} message={message} chatId={activeChatId} />
             ))}
             <div ref={messagesEndRef} />
           </div>

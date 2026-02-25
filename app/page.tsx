@@ -9,6 +9,7 @@ import { ChatCanvas } from '@/components/chat/ChatCanvas'
 import { MultiAgentView } from '@/components/features/MultiAgentView'
 import { DashboardView } from '@/components/features/DashboardView'
 import { ProjectsView } from '@/components/features/ProjectsView'
+import { PinnedBoard } from '@/components/features/PinnedBoard'
 import { PWAInstallPrompt } from '@/components/pwa/PWAInstallPrompt'
 
 export default function Home() {
@@ -90,6 +91,8 @@ export default function Home() {
       <main className="relative min-h-0 min-w-0 flex-1 overflow-hidden">
         {renderContent()}
       </main>
+
+      <PinnedBoard />
 
       {/* Right Panel */}
       <LivePanel />

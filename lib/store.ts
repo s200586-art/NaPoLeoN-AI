@@ -30,6 +30,17 @@ export interface Chat {
   updatedAt: Date
 }
 
+export interface PinnedNote {
+  id: string
+  chatId: string
+  chatTitle: string
+  messageId: string
+  role: Message['role']
+  content: string
+  timestamp: Date
+  pinnedAt: Date
+}
+
 export interface Agent {
   id: string
   name: string
@@ -64,6 +75,10 @@ interface AppState {
   rightPanelOpen: boolean
   setRightPanelOpen: (value: boolean) => void
 
+  // Pinned Board
+  pinnedBoardOpen: boolean
+  setPinnedBoardOpen: (value: boolean) => void
+
   // View Mode
   viewMode: ViewMode
   setViewMode: (mode: ViewMode) => void
@@ -78,6 +93,10 @@ interface AppState {
   updateChat: (id: string, updates: Partial<Chat>) => void
   addMessage: (chatId: string, message: Message) => void
   updateMessage: (chatId: string, messageId: string, content: string, isStreaming?: boolean) => void
+  pinnedNotes: PinnedNote[]
+  togglePinnedMessage: (chatId: string, message: Message) => void
+  removePinnedMessage: (id: string) => void
+  clearPinnedMessages: () => void
 
   // Model
   selectedModel: string
@@ -123,6 +142,10 @@ export const useAppStore = create<AppState>()(
       rightPanelOpen: true,
       setRightPanelOpen: (value) => set({ rightPanelOpen: value }),
 
+      // Pinned Board
+      pinnedBoardOpen: true,
+      setPinnedBoardOpen: (value) => set({ pinnedBoardOpen: value }),
+
       // View Mode
       viewMode: 'chat',
       setViewMode: (mode) => set({ viewMode: mode }),
@@ -130,6 +153,7 @@ export const useAppStore = create<AppState>()(
       // Chat
       chats: [],
       activeChat: null,
+      pinnedNotes: [],
       setActiveChat: (chat) => set({ activeChat: chat }),
       addChat: (chat) => set((state) => ({ 
         chats: [chat, ...state.chats],
@@ -168,11 +192,17 @@ export const useAppStore = create<AppState>()(
         const activeRemoved = state.activeChat?.id === id
         return {
           chats: nextChats,
+          pinnedNotes: state.pinnedNotes.filter((note) => note.chatId !== id),
           activeChat: activeRemoved ? (nextChats[0] ?? null) : state.activeChat,
         }
       }),
       updateChat: (id, updates) => set((state) => ({
         chats: state.chats.map(c => c.id === id ? { ...c, ...updates } : c),
+        pinnedNotes: state.pinnedNotes.map((note) =>
+          note.chatId === id && typeof updates.title === 'string'
+            ? { ...note, chatTitle: updates.title }
+            : note
+        ),
         activeChat: state.activeChat?.id === id 
           ? { ...state.activeChat, ...updates }
           : state.activeChat
@@ -216,9 +246,52 @@ export const useAppStore = create<AppState>()(
                   msg.id === messageId ? { ...msg, content, isStreaming } : msg
                 )
               }
-            : state.activeChat
+            : state.activeChat,
+          pinnedNotes: state.pinnedNotes.map((note) =>
+            note.chatId === chatId && note.messageId === messageId && content.trim()
+              ? { ...note, content: content.trim() }
+              : note
+          ),
         }
       }),
+      togglePinnedMessage: (chatId, message) =>
+        set((state) => {
+          const existing = state.pinnedNotes.find(
+            (note) => note.chatId === chatId && note.messageId === message.id
+          )
+          if (existing) {
+            return {
+              pinnedNotes: state.pinnedNotes.filter((note) => note.id !== existing.id),
+            }
+          }
+
+          const content = message.content.trim()
+          if (!content) {
+            return {}
+          }
+
+          const chat = state.chats.find((candidate) => candidate.id === chatId)
+          const note: PinnedNote = {
+            id: `${chatId}:${message.id}`,
+            chatId,
+            chatTitle: chat?.title || 'Чат',
+            messageId: message.id,
+            role: message.role,
+            content,
+            timestamp: new Date(message.timestamp),
+            pinnedAt: new Date(),
+          }
+
+          return {
+            pinnedNotes: [note, ...state.pinnedNotes].slice(0, 120),
+            pinnedBoardOpen: true,
+          }
+        }),
+      removePinnedMessage: (id) =>
+        set((state) => ({
+          pinnedNotes: state.pinnedNotes.filter((note) => note.id !== id),
+        })),
+      clearPinnedMessages: () => set({ pinnedNotes: [] }),
 
       // Model
       selectedModel: DEFAULT_SELECTED_MODEL,
@@ -249,6 +322,8 @@ export const useAppStore = create<AppState>()(
       partialize: (state) => ({
         theme: state.theme,
         chats: state.chats,
+        pinnedNotes: state.pinnedNotes,
+        pinnedBoardOpen: state.pinnedBoardOpen,
         sidebarOpen: state.sidebarOpen,
         rightPanelOpen: state.rightPanelOpen,
         selectedModel: state.selectedModel,
@@ -269,10 +344,22 @@ export const useAppStore = create<AppState>()(
           })),
         }))
 
+        const rawPinnedNotes = Array.isArray(typedState.pinnedNotes) ? typedState.pinnedNotes : []
+        const normalizedPinnedNotes = rawPinnedNotes.map((note) => ({
+          ...note,
+          timestamp: new Date(note.timestamp),
+          pinnedAt: new Date(note.pinnedAt),
+        }))
+
         return {
           ...currentState,
           ...typedState,
           chats: normalizedChats,
+          pinnedNotes: normalizedPinnedNotes,
+          pinnedBoardOpen:
+            typeof typedState.pinnedBoardOpen === 'boolean'
+              ? typedState.pinnedBoardOpen
+              : currentState.pinnedBoardOpen,
           selectedModel:
             typeof typedState.selectedModel === 'string' &&
             /(kimi|moonshot|minimax)/i.test(typedState.selectedModel)
