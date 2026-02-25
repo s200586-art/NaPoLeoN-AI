@@ -36,7 +36,25 @@ interface IncomingAttachment {
 
 const DEFAULT_MODEL = process.env.OPENCLAW_KIMI_MODEL || 'moonshotai/kimi-k2-instruct'
 const MAX_ATTACHMENTS = 6
-const MAX_ATTACHMENT_TEXT = 12000
+
+function readIntEnv(name: string, fallback: number, min: number, max: number) {
+  const raw = Number(process.env[name])
+  if (!Number.isFinite(raw)) return fallback
+  return Math.min(max, Math.max(min, Math.floor(raw)))
+}
+
+function readFloatEnv(name: string, fallback: number, min: number, max: number) {
+  const raw = Number(process.env[name])
+  if (!Number.isFinite(raw)) return fallback
+  return Math.min(max, Math.max(min, raw))
+}
+
+const MAX_ATTACHMENT_TEXT = readIntEnv('OPENCLAW_MAX_ATTACHMENT_TEXT', 5000, 1000, 20000)
+const HISTORY_LIMIT = readIntEnv('OPENCLAW_HISTORY_LIMIT', 12, 4, 40)
+const SESSION_LIMIT = readIntEnv('OPENCLAW_SESSION_LIMIT', 28, 12, 80)
+const MAX_TOKENS = readIntEnv('OPENCLAW_MAX_TOKENS', 900, 128, 4000)
+const TEMPERATURE = readFloatEnv('OPENCLAW_TEMPERATURE', 0.25, 0, 2)
+const TIMEOUT_MS = readIntEnv('OPENCLAW_TIMEOUT_MS', 45000, 5000, 120000)
 
 function normalizeAnswerContent(content: unknown): string | null {
   if (typeof content === 'string') {
@@ -83,6 +101,20 @@ function buildAttachmentContext(attachments: IncomingAttachment[]) {
   }
 
   return lines.join('\n')
+}
+
+function buildHistoryUserContent(prompt: string, attachments: IncomingAttachment[]) {
+  if (attachments.length === 0) return prompt
+
+  const names = attachments.slice(0, 3).map((attachment) => attachment.name).join(', ')
+  const restCount = Math.max(attachments.length - 3, 0)
+  const tail = restCount > 0 ? ` (+${restCount})` : ''
+  const attachmentNote = `[Вложения: ${names}${tail}]`
+
+  if (!prompt || prompt === 'Проанализируй прикреплённые файлы.') {
+    return attachmentNote
+  }
+  return `${prompt}\n${attachmentNote}`
 }
 
 function isSupportedModel(modelId: string) {
@@ -141,12 +173,8 @@ export async function POST(req: NextRequest) {
 
     const sid = sessionId || 'default'
     const history = await getSessionHistory(sid)
-
-    // Add user message to history
-    history.push({ role: 'user', content: userContent })
-
-    // Keep last 20 messages to avoid token overflow
-    const recentHistory = history.slice(-20)
+    const recentHistory = history.slice(-HISTORY_LIMIT)
+    const historyUserContent = buildHistoryUserContent(prompt, normalizedAttachments)
 
     // Build messages array with system prompt
     const messages = [
@@ -158,22 +186,40 @@ export async function POST(req: NextRequest) {
           'Если пользователь спрашивает о модели, называй именно этот id без догадок.',
       },
       ...recentHistory,
+      { role: 'user', content: userContent },
     ]
 
     const base = gatewayUrl.replace(/\/$/, '')
-    const upstream = await fetch(`${base}/v1/chat/completions`, {
-      method: 'POST',
-      headers: {
-        'content-type': 'application/json',
-        authorization: `Bearer ${gatewayToken}`,
-      },
-      body: JSON.stringify({
-        model: selectedModel,
-        messages,
-        temperature: 0.3,
-        max_tokens: 2000,
-      }),
-    })
+    const controller = new AbortController()
+    const timeout = setTimeout(() => controller.abort(), TIMEOUT_MS)
+
+    let upstream: Response
+    try {
+      upstream = await fetch(`${base}/v1/chat/completions`, {
+        method: 'POST',
+        headers: {
+          'content-type': 'application/json',
+          authorization: `Bearer ${gatewayToken}`,
+        },
+        body: JSON.stringify({
+          model: selectedModel,
+          messages,
+          temperature: TEMPERATURE,
+          max_tokens: MAX_TOKENS,
+        }),
+        signal: controller.signal,
+      })
+    } catch (error) {
+      if (error instanceof Error && error.name === 'AbortError') {
+        return NextResponse.json(
+          { error: `Таймаут OpenClaw (${TIMEOUT_MS}ms)` },
+          { status: 504 }
+        )
+      }
+      throw error
+    } finally {
+      clearTimeout(timeout)
+    }
 
     const raw = await upstream.text()
     const data = (() => {
@@ -213,15 +259,15 @@ export async function POST(req: NextRequest) {
       gatewayFamily !== 'unknown' &&
       requestedFamily !== gatewayFamily
 
-    // Save assistant response to session history
+    // Save compact history to keep subsequent requests fast.
+    history.push({ role: 'user', content: historyUserContent })
     history.push({ role: 'assistant', content: answer })
 
-    // Trim session if too long (keep last 40 messages)
-    if (history.length > 40) {
-      history.splice(0, history.length - 40)
+    if (history.length > SESSION_LIMIT) {
+      history.splice(0, history.length - SESSION_LIMIT)
     }
 
-    await saveSessionHistory(sid, history)
+    saveSessionHistory(sid, history).catch(() => undefined)
 
     return NextResponse.json({
       answer,
