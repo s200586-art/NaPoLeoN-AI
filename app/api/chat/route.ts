@@ -130,6 +130,42 @@ function getModelFamily(modelId: string): ModelFamily {
   return 'unknown'
 }
 
+function extractDeltaContent(content: unknown): string {
+  if (typeof content === 'string') {
+    return content
+  }
+  if (!Array.isArray(content)) {
+    return ''
+  }
+  return content
+    .map((part) => {
+      if (typeof part === 'string') return part
+      if (part && typeof part === 'object') {
+        const maybeText = (part as { text?: unknown }).text
+        if (typeof maybeText === 'string') return maybeText
+      }
+      return ''
+    })
+    .join('')
+}
+
+function extractStreamDelta(payload: unknown): string {
+  if (!payload || typeof payload !== 'object') {
+    return ''
+  }
+
+  const choices = (payload as { choices?: unknown }).choices
+  if (!Array.isArray(choices) || choices.length === 0) {
+    return ''
+  }
+
+  const firstChoice = choices[0] as { delta?: { content?: unknown }; text?: unknown }
+  if (firstChoice?.delta && 'content' in firstChoice.delta) {
+    return extractDeltaContent(firstChoice.delta.content)
+  }
+  return typeof firstChoice?.text === 'string' ? firstChoice.text : ''
+}
+
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json()
@@ -206,6 +242,7 @@ export async function POST(req: NextRequest) {
           messages,
           temperature: TEMPERATURE,
           max_tokens: MAX_TOKENS,
+          stream: true,
         }),
         signal: controller.signal,
       })
@@ -221,6 +258,141 @@ export async function POST(req: NextRequest) {
       clearTimeout(timeout)
     }
 
+    if (!upstream.ok) {
+      const raw = await upstream.text()
+      const data = (() => {
+        try {
+          return JSON.parse(raw)
+        } catch {
+          return null
+        }
+      })()
+      return NextResponse.json(
+        { error: data?.error?.message || `Ошибка Gateway (${upstream.status})` },
+        { status: upstream.status }
+      )
+    }
+
+    const upstreamContentType = upstream.headers.get('content-type') || ''
+
+    if (upstreamContentType.includes('text/event-stream') && upstream.body) {
+      const reader = upstream.body.getReader()
+      const decoder = new TextDecoder()
+      const encoder = new TextEncoder()
+
+      const stream = new ReadableStream<Uint8Array>({
+        async start(controller) {
+          let sseBuffer = ''
+          let answer = ''
+          let gatewayModel = selectedModel
+          let doneReceived = false
+
+          const emit = (payload: unknown) => {
+            controller.enqueue(encoder.encode(`${JSON.stringify(payload)}\n`))
+          }
+
+          try {
+            while (!doneReceived) {
+              const { done, value } = await reader.read()
+              if (done) break
+
+              sseBuffer += decoder.decode(value, { stream: true }).replace(/\r/g, '')
+
+              let boundary = sseBuffer.indexOf('\n\n')
+              while (boundary !== -1) {
+                const eventBlock = sseBuffer.slice(0, boundary)
+                sseBuffer = sseBuffer.slice(boundary + 2)
+
+                const dataLines = eventBlock
+                  .split('\n')
+                  .filter((line) => line.startsWith('data:'))
+                  .map((line) => line.slice(5).trim())
+                const dataText = dataLines.join('\n')
+
+                if (!dataText) {
+                  boundary = sseBuffer.indexOf('\n\n')
+                  continue
+                }
+
+                if (dataText === '[DONE]') {
+                  doneReceived = true
+                  break
+                }
+
+                let parsed: unknown
+                try {
+                  parsed = JSON.parse(dataText)
+                } catch {
+                  boundary = sseBuffer.indexOf('\n\n')
+                  continue
+                }
+
+                const modelFromChunk = (parsed as { model?: unknown }).model
+                if (typeof modelFromChunk === 'string' && modelFromChunk.trim()) {
+                  gatewayModel = modelFromChunk.trim()
+                }
+
+                const delta = extractStreamDelta(parsed)
+                if (delta) {
+                  answer += delta
+                  emit({ type: 'token', delta })
+                }
+
+                boundary = sseBuffer.indexOf('\n\n')
+              }
+            }
+
+            if (!answer.trim()) {
+              emit({ type: 'error', error: 'Пустой ответ от Наполи.' })
+              controller.close()
+              return
+            }
+
+            const requestedFamily = getModelFamily(selectedModel)
+            const gatewayFamily = getModelFamily(gatewayModel)
+            const modelMismatch =
+              requestedFamily !== 'unknown' &&
+              gatewayFamily !== 'unknown' &&
+              requestedFamily !== gatewayFamily
+
+            history.push({ role: 'user', content: historyUserContent })
+            history.push({ role: 'assistant', content: answer })
+
+            if (history.length > SESSION_LIMIT) {
+              history.splice(0, history.length - SESSION_LIMIT)
+            }
+
+            saveSessionHistory(sid, history).catch(() => undefined)
+
+            emit({
+              type: 'done',
+              answer,
+              sessionId: sid,
+              model: gatewayModel,
+              requestedModel: selectedModel,
+              modelMismatch,
+            })
+          } catch (error) {
+            const message = error instanceof Error ? error.message : 'Ошибка stream ответа'
+            emit({ type: 'error', error: message })
+          } finally {
+            controller.close()
+          }
+        },
+        cancel() {
+          reader.cancel().catch(() => undefined)
+        },
+      })
+
+      return new Response(stream, {
+        headers: {
+          'content-type': 'application/x-ndjson; charset=utf-8',
+          'cache-control': 'no-cache, no-transform',
+          'x-accel-buffering': 'no',
+        },
+      })
+    }
+
     const raw = await upstream.text()
     const data = (() => {
       try {
@@ -229,13 +401,6 @@ export async function POST(req: NextRequest) {
         return null
       }
     })()
-
-    if (!upstream.ok) {
-      return NextResponse.json(
-        { error: data?.error?.message || `Ошибка Gateway (${upstream.status})` },
-        { status: upstream.status }
-      )
-    }
 
     const answer = normalizeAnswerContent(data?.choices?.[0]?.message?.content)
     if (!answer) {
@@ -259,7 +424,6 @@ export async function POST(req: NextRequest) {
       gatewayFamily !== 'unknown' &&
       requestedFamily !== gatewayFamily
 
-    // Save compact history to keep subsequent requests fast.
     history.push({ role: 'user', content: historyUserContent })
     history.push({ role: 'assistant', content: answer })
 

@@ -26,6 +26,27 @@ interface ChatResponse {
   error?: string
 }
 
+interface ChatTokenEvent {
+  type: 'token'
+  delta: string
+}
+
+interface ChatDoneEvent {
+  type: 'done'
+  answer?: string
+  sessionId?: string
+  model?: string
+  requestedModel?: string
+  modelMismatch?: boolean
+}
+
+interface ChatErrorEvent {
+  type: 'error'
+  error?: string
+}
+
+type ChatStreamEvent = ChatTokenEvent | ChatDoneEvent | ChatErrorEvent
+
 export function ChatCanvas({ className }: ChatCanvasProps) {
   const {
     activeChat,
@@ -155,38 +176,122 @@ export function ChatCanvas({ className }: ChatCanvasProps) {
         }),
       })
 
-      const raw = await res.text()
-      const data = (() => {
-        try {
-          return JSON.parse(raw) as ChatResponse
-        } catch {
-          return null
-        }
-      })()
-
       if (!res.ok) {
+        const raw = await res.text()
+        const data = (() => {
+          try {
+            return JSON.parse(raw) as ChatResponse
+          } catch {
+            return null
+          }
+        })()
         throw new Error(
           data?.error ||
           `Ошибка запроса к OpenClaw (${res.status})${raw ? `: ${raw.slice(0, 180)}` : ''}`
         )
       }
 
-      const fullResponse = data?.answer || 'Пустой ответ от Наполи.'
-      const actualModel = data?.model || selectedModel
-      const responseText = data?.modelMismatch
-        ? `[Внимание: gateway вернул модель ${actualModel} вместо выбранной ${selectedModel}]\n\n${fullResponse}`
-        : fullResponse
-      // Save session ID if returned
-      if (data?.sessionId && typeof window !== 'undefined') {
-        localStorage.setItem('napoleon_session_id', data.sessionId)
-      }
-      updateMessage(chat.id, assistantMessageId, responseText)
-      addLog({ level: 'success', message: `Ответ получен от Наполи (${actualModel})` })
-      if (data?.modelMismatch) {
-        addLog({
-          level: 'warn',
-          message: `Несоответствие модели: выбрана ${selectedModel}, gateway вернул ${actualModel}`,
-        })
+      const contentType = res.headers.get('content-type') || ''
+      if (contentType.includes('application/x-ndjson')) {
+        if (!res.body) {
+          throw new Error('Пустой stream ответа от OpenClaw')
+        }
+
+        const reader = res.body.getReader()
+        const decoder = new TextDecoder()
+        let buffer = ''
+        let fullResponse = ''
+        let doneEvent: ChatDoneEvent | null = null
+
+        while (true) {
+          const { done, value } = await reader.read()
+          if (done) break
+
+          buffer += decoder.decode(value, { stream: true })
+          let lineBreak = buffer.indexOf('\n')
+
+          while (lineBreak !== -1) {
+            const line = buffer.slice(0, lineBreak).trim()
+            buffer = buffer.slice(lineBreak + 1)
+            lineBreak = buffer.indexOf('\n')
+
+            if (!line) continue
+
+            let event: ChatStreamEvent | null = null
+            try {
+              event = JSON.parse(line) as ChatStreamEvent
+            } catch {
+              continue
+            }
+
+            if (event.type === 'token') {
+              if (event.delta) {
+                fullResponse += event.delta
+                updateMessage(chat.id, assistantMessageId, fullResponse, true)
+              }
+              continue
+            }
+
+            if (event.type === 'done') {
+              doneEvent = event
+              if (event.answer) {
+                fullResponse = event.answer
+              }
+              continue
+            }
+
+            if (event.type === 'error') {
+              throw new Error(event.error || 'Ошибка stream ответа OpenClaw')
+            }
+          }
+        }
+
+        const actualModel = doneEvent?.model || selectedModel
+        const responseBase = fullResponse || doneEvent?.answer || 'Пустой ответ от Наполи.'
+        const responseText = doneEvent?.modelMismatch
+          ? `[Внимание: gateway вернул модель ${actualModel} вместо выбранной ${selectedModel}]\n\n${responseBase}`
+          : responseBase
+
+        if (doneEvent?.sessionId && typeof window !== 'undefined') {
+          localStorage.setItem('napoleon_session_id', doneEvent.sessionId)
+        }
+
+        updateMessage(chat.id, assistantMessageId, responseText, false)
+        addLog({ level: 'success', message: `Ответ получен от Наполи (${actualModel})` })
+        if (doneEvent?.modelMismatch) {
+          addLog({
+            level: 'warn',
+            message: `Несоответствие модели: выбрана ${selectedModel}, gateway вернул ${actualModel}`,
+          })
+        }
+      } else {
+        const raw = await res.text()
+        const data = (() => {
+          try {
+            return JSON.parse(raw) as ChatResponse
+          } catch {
+            return null
+          }
+        })()
+
+        const fullResponse = data?.answer || 'Пустой ответ от Наполи.'
+        const actualModel = data?.model || selectedModel
+        const responseText = data?.modelMismatch
+          ? `[Внимание: gateway вернул модель ${actualModel} вместо выбранной ${selectedModel}]\n\n${fullResponse}`
+          : fullResponse
+
+        if (data?.sessionId && typeof window !== 'undefined') {
+          localStorage.setItem('napoleon_session_id', data.sessionId)
+        }
+
+        updateMessage(chat.id, assistantMessageId, responseText, false)
+        addLog({ level: 'success', message: `Ответ получен от Наполи (${actualModel})` })
+        if (data?.modelMismatch) {
+          addLog({
+            level: 'warn',
+            message: `Несоответствие модели: выбрана ${selectedModel}, gateway вернул ${actualModel}`,
+          })
+        }
       }
     } catch (e) {
       const errText = e instanceof Error ? e.message : 'Неизвестная ошибка'
