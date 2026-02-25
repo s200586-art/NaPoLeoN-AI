@@ -1,12 +1,13 @@
 'use client'
 
-import React from 'react'
+import React, { useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import {
   MessageSquare,
   Bot,
   LayoutDashboard,
   FolderOpen,
+  Upload,
   Plus,
   Trash2,
   ChevronLeft,
@@ -19,6 +20,7 @@ import { motion, AnimatePresence } from 'framer-motion'
 import { useAppStore, ViewMode } from '@/lib/store'
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/Button'
+import { parseChatImportFile } from '@/lib/chat-import'
 
 interface SidebarProps {
   className?: string
@@ -26,6 +28,8 @@ interface SidebarProps {
 
 export function Sidebar({ className }: SidebarProps) {
   const router = useRouter()
+  const fileInputRef = useRef<HTMLInputElement>(null)
+  const [importing, setImporting] = useState(false)
   const {
     sidebarOpen,
     setSidebarOpen,
@@ -37,8 +41,10 @@ export function Sidebar({ className }: SidebarProps) {
     activeChat,
     setActiveChat,
     addChat,
+    importChats,
     removeChat,
     setAuthenticated,
+    addLog,
   } = useAppStore()
 
   const handleNewChat = () => {
@@ -58,6 +64,36 @@ export function Sidebar({ className }: SidebarProps) {
     } finally {
       setAuthenticated(false)
       router.replace('/login')
+    }
+  }
+
+  const handleImportChats: React.ChangeEventHandler<HTMLInputElement> = async (event) => {
+    const file = event.target.files?.[0]
+    if (!file) return
+
+    setImporting(true)
+    try {
+      const raw = await file.text()
+      const result = parseChatImportFile(raw, file.name)
+      importChats(result.chats)
+      setViewMode('chat')
+      addLog({
+        level: 'success',
+        message: `Импортировано чатов: ${result.chats.length} (${result.source})`,
+      })
+
+      if (result.warnings.length > 0) {
+        addLog({
+          level: 'warn',
+          message: `Импорт: ${result.warnings[0]}`,
+        })
+      }
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Ошибка импорта'
+      addLog({ level: 'error', message: `Импорт не выполнен: ${message}` })
+    } finally {
+      setImporting(false)
+      event.target.value = ''
     }
   }
 
@@ -106,7 +142,7 @@ export function Sidebar({ className }: SidebarProps) {
       </div>
 
       {/* New Chat Button */}
-      <div className="p-3">
+      <div className="space-y-2 p-3">
         <Button
           variant="outline"
           className={cn('w-full justify-start gap-2', !sidebarOpen && 'justify-center')}
@@ -114,6 +150,24 @@ export function Sidebar({ className }: SidebarProps) {
         >
           <Plus className="h-4 w-4" />
           {sidebarOpen && <span>Новый чат</span>}
+        </Button>
+        <input
+          ref={fileInputRef}
+          type="file"
+          className="hidden"
+          accept=".json,application/json"
+          onChange={handleImportChats}
+          disabled={importing}
+        />
+        <Button
+          variant="outline"
+          className={cn('w-full justify-start gap-2', !sidebarOpen && 'justify-center')}
+          onClick={() => fileInputRef.current?.click()}
+          disabled={importing}
+          title="Импорт чатов из JSON"
+        >
+          <Upload className="h-4 w-4" />
+          {sidebarOpen && <span>{importing ? 'Импорт...' : 'Импорт чатов'}</span>}
         </Button>
       </div>
 

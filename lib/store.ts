@@ -73,6 +73,7 @@ interface AppState {
   activeChat: Chat | null
   setActiveChat: (chat: Chat | null) => void
   addChat: (chat: Chat) => void
+  importChats: (chats: Chat[]) => void
   removeChat: (id: string) => void
   updateChat: (id: string, updates: Partial<Chat>) => void
   addMessage: (chatId: string, message: Message) => void
@@ -134,6 +135,34 @@ export const useAppStore = create<AppState>()(
         chats: [chat, ...state.chats],
         activeChat: chat 
       })),
+      importChats: (incomingChats) =>
+        set((state) => {
+          const normalizedChats = incomingChats
+            .filter((chat) => chat && Array.isArray(chat.messages) && chat.messages.length > 0)
+            .map((chat) => ({
+              ...chat,
+              title: chat.title?.trim() || 'Импортированный чат',
+              createdAt: new Date(chat.createdAt),
+              updatedAt: new Date(chat.updatedAt),
+              messages: chat.messages
+                .filter((message) => message.content?.trim())
+                .map((message) => ({
+                  ...message,
+                  timestamp: new Date(message.timestamp),
+                  isStreaming: false,
+                })),
+            }))
+            .filter((chat) => chat.messages.length > 0)
+
+          if (normalizedChats.length === 0) {
+            return {}
+          }
+
+          return {
+            chats: [...normalizedChats, ...state.chats],
+            activeChat: normalizedChats[0] || state.activeChat,
+          }
+        }),
       removeChat: (id) => set((state) => {
         const nextChats = state.chats.filter((chat) => chat.id !== id)
         const activeRemoved = state.activeChat?.id === id

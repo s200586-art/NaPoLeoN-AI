@@ -42,3 +42,11 @@ npm run dev
 - TailwindCSS
 - Zustand
 - Framer Motion
+
+## Импорт чатов
+- Кнопка `Импорт чатов` находится в левом меню.
+- Поддерживаемые форматы JSON:
+  - ChatGPT export (`conversations.json`)
+  - Claude export (`chat_messages` / `messages`)
+  - Gemini export (`conversations` / `messages` / `contents`)
+  - generic JSON с массивом `messages` для каждого диалога
