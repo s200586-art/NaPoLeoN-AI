@@ -34,7 +34,7 @@ export interface Agent {
   id: string
   name: string
   model: string
-  status: 'idle' | 'thinking' | 'working' | 'completed'
+  status: 'idle' | 'thinking' | 'working' | 'completed' | 'planned'
   lastMessage?: string
 }
 
@@ -197,9 +197,9 @@ export const useAppStore = create<AppState>()(
 
       // Agents
       agents: [
-        { id: 'claude', name: 'Claude', model: 'Claude 3.5 Sonnet', status: 'idle' },
-        { id: 'gemini', name: 'Gemini', model: 'Gemini 2.0 Flash', status: 'idle' },
-        { id: 'codex', name: 'Codex', model: 'Codex 3', status: 'idle' },
+        { id: 'kimi', name: 'Kimi', model: 'moonshotai/kimi-k2-instruct', status: 'idle' },
+        { id: 'minimax', name: 'MiniMax', model: 'minimax/MiniMax-M2.5', status: 'idle' },
+        { id: 'glm', name: 'GLM', model: 'Будет добавлен позже', status: 'planned' },
       ],
       setAgentStatus: (id, status) => set((state) => ({
         agents: state.agents.map(a => a.id === id ? { ...a, status } : a)

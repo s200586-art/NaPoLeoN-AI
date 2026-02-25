@@ -21,6 +21,8 @@ function AgentColumn({ agent, className }: AgentColumnProps) {
         return <Circle className="h-4 w-4 fill-amber-500 text-amber-500 animate-pulse" />
       case 'completed':
         return <CheckCircle2 className="h-4 w-4 text-emerald-500" />
+      case 'planned':
+        return <AlertCircle className="h-4 w-4 text-zinc-400" />
       case 'idle':
         return <Circle className="h-4 w-4 text-muted-foreground" />
       default:
@@ -36,6 +38,8 @@ function AgentColumn({ agent, className }: AgentColumnProps) {
         return 'В работе...'
       case 'completed':
         return 'Готово'
+      case 'planned':
+        return 'Скоро'
       case 'idle':
         return 'Готов'
       default:
@@ -73,6 +77,12 @@ function AgentColumn({ agent, className }: AgentColumnProps) {
           <div className="text-sm text-muted-foreground">
             <p>{agent.lastMessage}</p>
           </div>
+        ) : agent.status === 'planned' ? (
+          <div className="flex flex-col items-center justify-center h-full text-center">
+            <AlertCircle className="h-8 w-8 text-muted-foreground mb-2 opacity-60" />
+            <p className="text-sm text-muted-foreground">Агент в плане</p>
+            <p className="text-xs text-muted-foreground mt-1">Подключишь позже в настройках OpenClaw</p>
+          </div>
         ) : (
           <div className="flex flex-col items-center justify-center h-full text-center">
             <Bot className="h-8 w-8 text-muted-foreground mb-2 opacity-50" />
@@ -97,12 +107,14 @@ function AgentColumn({ agent, className }: AgentColumnProps) {
           <button
             className={cn(
               'flex-1 py-2 px-3 text-xs font-medium rounded-lg',
-              'bg-zinc-900 dark:bg-zinc-100 text-white dark:text-zinc-900',
-              'hover:bg-zinc-800 dark:hover:bg-zinc-200',
+              agent.status === 'planned'
+                ? 'bg-zinc-300 dark:bg-zinc-700 text-zinc-600 dark:text-zinc-300 cursor-not-allowed'
+                : 'bg-zinc-900 dark:bg-zinc-100 text-white dark:text-zinc-900 hover:bg-zinc-800 dark:hover:bg-zinc-200',
               'transition-colors duration-150'
             )}
+            disabled={agent.status === 'planned'}
           >
-Запустить
+{agent.status === 'planned' ? 'Скоро' : 'Запустить'}
           </button>
         </div>
       </div>
