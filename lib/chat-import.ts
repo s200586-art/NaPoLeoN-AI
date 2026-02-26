@@ -26,6 +26,7 @@ interface ParsedConversation {
 const MAX_IMPORTED_CHATS = 120
 const MAX_MESSAGES_PER_CHAT = 600
 const MAX_MESSAGE_LENGTH = 20_000
+const MAX_WARNINGS = 40
 
 function createId(prefix: 'chat' | 'msg') {
   return `${prefix}_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 9)}`
@@ -88,14 +89,17 @@ function normalizeRole(value: unknown): Role | null {
 function parseTimestamp(value: unknown, fallbackMs = Date.now()): Date {
   if (typeof value === 'number' && Number.isFinite(value)) {
     const ms = value > 1_000_000_000_000 ? value : value * 1000
-    return new Date(ms)
+    const date = new Date(ms)
+    if (!Number.isNaN(date.getTime())) return date
+    return new Date(fallbackMs)
   }
 
   if (typeof value === 'string' && value.trim()) {
     const asNumber = Number(value)
     if (Number.isFinite(asNumber)) {
       const ms = asNumber > 1_000_000_000_000 ? asNumber : asNumber * 1000
-      return new Date(ms)
+      const date = new Date(ms)
+      if (!Number.isNaN(date.getTime())) return date
     }
 
     const asDate = new Date(value)
@@ -129,6 +133,23 @@ function extractText(value: unknown, depth = 0): string {
   if (!isRecord(value)) return ''
 
   const content = value
+
+  const candidateCollections = [
+    content.content,
+    content.items,
+    content.messages,
+    content.blocks,
+    content.data,
+  ]
+  for (const collection of candidateCollections) {
+    if (!Array.isArray(collection)) continue
+    const merged = collection
+      .map((item) => extractText(item, depth + 1))
+      .filter(Boolean)
+      .join('\n')
+      .trim()
+    if (merged) return merged
+  }
 
   const parts = asArray(content.parts)
     .map((part) => extractText(part, depth + 1))
@@ -194,6 +215,72 @@ function compactMessages(messages: ParsedMessage[]) {
   return result
 }
 
+function normalizeSignatureText(value: string) {
+  return value
+    .toLowerCase()
+    .replace(/\s+/g, ' ')
+    .replace(/[^a-z0-9а-яё\s.,!?-]/gi, '')
+    .trim()
+}
+
+function buildChatSignature(chat: Chat) {
+  const first = chat.messages[0]
+  const last = chat.messages[chat.messages.length - 1]
+  const sample = chat.messages
+    .slice(0, 3)
+    .concat(chat.messages.slice(Math.max(chat.messages.length - 3, 3)))
+    .map((message) => `${message.role}:${normalizeSignatureText(message.content).slice(0, 240)}`)
+    .join('|')
+  const createdBucket = Math.floor(chat.createdAt.getTime() / (1000 * 60))
+  const updatedBucket = Math.floor(chat.updatedAt.getTime() / (1000 * 60))
+  return [
+    chat.messages.length,
+    createdBucket,
+    updatedBucket,
+    `${first.role}:${normalizeSignatureText(first.content).slice(0, 240)}`,
+    `${last.role}:${normalizeSignatureText(last.content).slice(0, 240)}`,
+    sample,
+  ].join('#')
+}
+
+function dedupeChats(chats: Chat[]) {
+  const seen = new Set<string>()
+  const unique: Chat[] = []
+  let duplicates = 0
+
+  for (const chat of chats) {
+    const signature = buildChatSignature(chat)
+    if (seen.has(signature)) {
+      duplicates += 1
+      continue
+    }
+    seen.add(signature)
+    unique.push(chat)
+  }
+
+  return { chats: unique, duplicates }
+}
+
+function truncateWarnings(warnings: string[]) {
+  if (warnings.length <= MAX_WARNINGS) return warnings
+  return [...warnings.slice(0, MAX_WARNINGS), `…и ещё ${warnings.length - MAX_WARNINGS} предупреждений.`]
+}
+
+function looksLikeMessageRecord(record: Record<string, unknown>) {
+  const roleCandidate = normalizeRole(
+    record.role || record.sender || record.author || record.type || record.name
+  )
+  if (roleCandidate) return true
+
+  return Boolean(
+    asString(record.text) ||
+    asString(record.content) ||
+    asString(record.body) ||
+    asString(record.message) ||
+    asArray(record.parts).length > 0
+  )
+}
+
 function toChat(conversation: ParsedConversation): Chat | null {
   const normalizedMessages = compactMessages(conversation.messages)
   if (normalizedMessages.length === 0) return null
@@ -226,7 +313,20 @@ function toChat(conversation: ParsedConversation): Chat | null {
 
 function selectConversationsPayload(value: unknown): Record<string, unknown>[] {
   if (Array.isArray(value)) {
-    return value.filter((item): item is Record<string, unknown> => isRecord(item))
+    const records = value.filter((item): item is Record<string, unknown> => isRecord(item))
+    if (records.length === 0) return []
+
+    const messageLikeCount = records.filter((record) => looksLikeMessageRecord(record)).length
+    if (messageLikeCount >= Math.max(2, Math.ceil(records.length * 0.6))) {
+      return [
+        {
+          title: 'Импортированный чат',
+          messages: records,
+        },
+      ]
+    }
+
+    return records
   }
 
   if (!isRecord(value)) return []
@@ -444,14 +544,20 @@ function parseConversationWithMessageArray(
 }
 
 function parseChatGptPayload(payload: unknown): ChatImportResult | null {
-  if (!Array.isArray(payload)) return null
-  if (!payload.some((item) => isRecord(item) && isRecord(item.mapping))) return null
+  const conversations = Array.isArray(payload)
+    ? payload.filter((item): item is Record<string, unknown> => isRecord(item))
+    : isRecord(payload) && isRecord(payload.mapping)
+      ? [payload]
+      : isRecord(payload)
+        ? selectConversationsPayload(payload).filter((item) => isRecord(item.mapping))
+        : []
+
+  if (!conversations.some((item) => isRecord(item.mapping))) return null
 
   const warnings: string[] = []
   const chats: Chat[] = []
 
-  payload.slice(0, MAX_IMPORTED_CHATS).forEach((item, index) => {
-    if (!isRecord(item)) return
+  conversations.slice(0, MAX_IMPORTED_CHATS).forEach((item, index) => {
     const parsed = parseChatGptConversation(item, index)
     const chat = parsed ? toChat(parsed) : null
     if (chat) {
@@ -585,7 +691,19 @@ export function parseChatImportFile(raw: string, filename: string): ChatImportRe
   for (const parser of orderedParsers) {
     const result = parser(payload)
     if (!result) continue
-    if (result.chats.length > 0) return result
+    if (result.chats.length === 0) continue
+
+    const { chats: uniqueChats, duplicates } = dedupeChats(result.chats)
+    const warnings = [...result.warnings]
+    if (duplicates > 0) {
+      warnings.push(`Удалено дублирующихся диалогов: ${duplicates}.`)
+    }
+
+    return {
+      ...result,
+      chats: uniqueChats.slice(0, MAX_IMPORTED_CHATS),
+      warnings: truncateWarnings(warnings),
+    }
   }
 
   throw new Error(
