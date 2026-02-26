@@ -46,7 +46,7 @@ export interface Agent {
   id: string
   name: string
   model: string
-  status: 'idle' | 'thinking' | 'working' | 'completed' | 'planned'
+  status: 'idle' | 'thinking' | 'working' | 'completed' | 'planned' | 'error'
   lastMessage?: string
 }
 
