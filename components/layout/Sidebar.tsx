@@ -7,6 +7,7 @@ import {
   Bot,
   LayoutDashboard,
   FolderOpen,
+  Inbox,
   Upload,
   Plus,
   Trash2,
@@ -102,6 +103,7 @@ export function Sidebar({ className }: SidebarProps) {
     { id: 'agents', icon: Bot, label: 'Агенты' },
     { id: 'dashboard', icon: LayoutDashboard, label: 'Дашборд' },
     { id: 'projects', icon: FolderOpen, label: 'Проекты' },
+    { id: 'inbox', icon: Inbox, label: 'Инбокс' },
   ]
 
   return (

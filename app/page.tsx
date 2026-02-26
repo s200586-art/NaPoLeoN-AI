@@ -9,6 +9,7 @@ import { ChatCanvas } from '@/components/chat/ChatCanvas'
 import { MultiAgentView } from '@/components/features/MultiAgentView'
 import { DashboardView } from '@/components/features/DashboardView'
 import { ProjectsView } from '@/components/features/ProjectsView'
+import { ShareInboxView } from '@/components/features/ShareInboxView'
 import { PinnedBoard } from '@/components/features/PinnedBoard'
 import { PWAInstallPrompt } from '@/components/pwa/PWAInstallPrompt'
 
@@ -77,6 +78,8 @@ export default function Home() {
         return <DashboardView />
       case 'projects':
         return <ProjectsView />
+      case 'inbox':
+        return <ShareInboxView />
       default:
         return <ChatCanvas />
     }

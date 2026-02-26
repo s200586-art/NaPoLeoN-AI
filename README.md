@@ -35,6 +35,10 @@ npm run dev
 - `GDRIVE_REQUEST_TIMEOUT_MS` — таймаут запросов к Google Drive (по умолчанию `8000`)
 - `GDRIVE_PROJECTS_LIMIT` — сколько папок-проектов отдавать (по умолчанию `40`)
 - `GDRIVE_FILES_LIMIT` — сколько файлов проекта отдавать (по умолчанию `100`)
+- `NAPOLEON_SHARE_TOKEN` — токен для внешнего POST в Share Inbox (`Authorization: Bearer ...` или `x-share-token`)
+- `NAPOLEON_SHARE_INBOX_FILE` — путь к JSON-файлу Share Inbox (если не задан, используется `data/share-inbox.json` или `/tmp/napoleon/share-inbox.json` в serverless)
+- `NAPOLEON_SHARE_INBOX_MAX_ITEMS` — лимит сохранённых shared-записей (по умолчанию `500`)
+- `NAPOLEON_SHARE_INBOX_MAX_CONTENT` — лимит длины текста одной shared-записи (по умолчанию `20000`)
 
 ## Стек
 - Next.js 14
@@ -56,6 +60,13 @@ npm run dev
 - Закреплённые сообщения попадают в отдельную панель `Доска закрепов` справа от основного экрана.
 - Из доски можно перейти в исходный чат или убрать запись из закрепов.
 - Поддерживаются категории/теги закрепов и фильтр по ним (Все / Важное / Задача / Идея / Код / Контент / Личное).
+
+## Share Inbox
+- Вкладка `Инбокс` показывает входящие shared-элементы из внешних источников.
+- API endpoint: `POST /api/share/inbox`.
+- Для внешних сервисов используйте `Bearer NAPOLEON_SHARE_TOKEN` (или header `x-share-token`).
+- Поддерживаются поля `source`, `title`, `content`/`text`/`message`, `url`, `author`, `tags`.
+- Из UI можно помечать карточки статусами (`Новые`/`В работе`/`Готово`), удалять и отправлять карточку в чат.
 
 ## PWA (Android)
 - Приложение поддерживает установку как PWA через браузер Chrome на Android.
