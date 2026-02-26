@@ -56,6 +56,9 @@ const SESSION_LIMIT = readIntEnv('OPENCLAW_SESSION_LIMIT', 28, 12, 80)
 const MAX_TOKENS = readIntEnv('OPENCLAW_MAX_TOKENS', 900, 128, 4000)
 const TEMPERATURE = readFloatEnv('OPENCLAW_TEMPERATURE', 0.25, 0, 2)
 const TIMEOUT_MS = readIntEnv('OPENCLAW_TIMEOUT_MS', 45000, 5000, 120000)
+const QUICK_HISTORY_LIMIT = readIntEnv('OPENCLAW_QUICK_HISTORY_LIMIT', 6, 2, 20)
+const QUICK_MAX_TOKENS = readIntEnv('OPENCLAW_QUICK_MAX_TOKENS', 420, 80, 2000)
+const QUICK_TEMPERATURE = readFloatEnv('OPENCLAW_QUICK_TEMPERATURE', 0.15, 0, 1)
 
 function normalizeAnswerContent(content: unknown): string | null {
   if (typeof content === 'string') {
@@ -174,12 +177,14 @@ export async function POST(req: NextRequest) {
 
   try {
     const body = await req.json()
-    const { message, sessionId, model, attachments } = body as {
+    const { message, sessionId, model, attachments, quickMode } = body as {
       message?: string
       sessionId?: string
       model?: string
       attachments?: IncomingAttachment[]
+      quickMode?: boolean
     }
+    const isQuickMode = Boolean(quickMode)
 
     const normalizedMessage = message?.trim() || ''
     const normalizedAttachments = Array.isArray(attachments)
@@ -214,7 +219,10 @@ export async function POST(req: NextRequest) {
 
     const sid = sessionId || 'default'
     const history = await getSessionHistory(sid)
-    const recentHistory = history.slice(-HISTORY_LIMIT)
+    const effectiveHistoryLimit = isQuickMode ? Math.min(HISTORY_LIMIT, QUICK_HISTORY_LIMIT) : HISTORY_LIMIT
+    const effectiveMaxTokens = isQuickMode ? Math.min(MAX_TOKENS, QUICK_MAX_TOKENS) : MAX_TOKENS
+    const effectiveTemperature = isQuickMode ? Math.min(TEMPERATURE, QUICK_TEMPERATURE) : TEMPERATURE
+    const recentHistory = history.slice(-effectiveHistoryLimit)
     const historyUserContent = buildHistoryUserContent(prompt, normalizedAttachments)
 
     // Build messages array with system prompt
@@ -226,6 +234,15 @@ export async function POST(req: NextRequest) {
           `Технический контекст: текущая выбранная модель OpenClaw = "${selectedModel}". ` +
           'Если пользователь спрашивает о модели, называй именно этот id без догадок.',
       },
+      ...(isQuickMode
+        ? [
+            {
+              role: 'system',
+              content:
+                'Включён быстрый режим. Отвечай короче, строго по сути, без длинных вступлений и лишних деталей.',
+            },
+          ]
+        : []),
       ...recentHistory,
       { role: 'user', content: userContent },
     ]
@@ -245,8 +262,8 @@ export async function POST(req: NextRequest) {
         body: JSON.stringify({
           model: selectedModel,
           messages,
-          temperature: TEMPERATURE,
-          max_tokens: MAX_TOKENS,
+          temperature: effectiveTemperature,
+          max_tokens: effectiveMaxTokens,
           stream: true,
         }),
         signal: controller.signal,

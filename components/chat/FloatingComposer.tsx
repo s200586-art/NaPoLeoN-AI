@@ -1,8 +1,8 @@
 'use client'
 
-import React, { useState, useRef, useEffect } from 'react'
+import React, { useEffect, useRef, useState } from 'react'
 import { motion } from 'framer-motion'
-import { Send, Paperclip, Sparkles, X } from 'lucide-react'
+import { Mic, MicOff, Paperclip, Send, Sparkles, X } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/Button'
 import { Textarea } from '@/components/ui/Textarea'
@@ -15,17 +15,47 @@ export interface ComposerAttachment extends MessageAttachment {
 interface ComposerPayload {
   message: string
   attachments: ComposerAttachment[]
+  quickMode: boolean
 }
 
 interface FloatingComposerProps {
   onSend: (payload: ComposerPayload) => void
   selectedModel: string
   onModelChange: (model: string) => void
+  quickMode: boolean
+  onQuickModeChange: (enabled: boolean) => void
   models: string[]
   modelsLoading?: boolean
   disabled?: boolean
   className?: string
 }
+
+interface BrowserSpeechRecognitionResult {
+  isFinal?: boolean
+  [index: number]: { transcript?: string }
+}
+
+interface BrowserSpeechRecognitionEvent {
+  results: ArrayLike<BrowserSpeechRecognitionResult>
+}
+
+interface BrowserSpeechRecognitionErrorEvent {
+  error?: string
+}
+
+interface BrowserSpeechRecognition {
+  lang: string
+  continuous: boolean
+  interimResults: boolean
+  onresult: ((event: BrowserSpeechRecognitionEvent) => void) | null
+  onerror: ((event: BrowserSpeechRecognitionErrorEvent) => void) | null
+  onend: (() => void) | null
+  start: () => void
+  stop: () => void
+  abort: () => void
+}
+
+type SpeechRecognitionCtor = new () => BrowserSpeechRecognition
 
 const MAX_ATTACHMENTS = 6
 const MAX_TEXT_ATTACHMENT_SIZE = 2 * 1024 * 1024
@@ -66,10 +96,21 @@ function modelLabel(model: string) {
   return parts[parts.length - 1] || model
 }
 
+function mapVoiceError(code?: string) {
+  if (!code) return 'Ошибка голосового ввода'
+  if (code === 'not-allowed' || code === 'service-not-allowed') return 'Нет доступа к микрофону'
+  if (code === 'network') return 'Ошибка сети при распознавании речи'
+  if (code === 'audio-capture') return 'Микрофон не найден'
+  if (code === 'no-speech') return 'Не удалось распознать речь'
+  return `Ошибка голосового ввода: ${code}`
+}
+
 export function FloatingComposer({
   onSend,
   selectedModel,
   onModelChange,
+  quickMode,
+  onQuickModeChange,
   models,
   modelsLoading,
   disabled,
@@ -78,14 +119,25 @@ export function FloatingComposer({
   const [message, setMessage] = useState('')
   const [isFocused, setIsFocused] = useState(false)
   const [attachments, setAttachments] = useState<ComposerAttachment[]>([])
+  const [voiceSupported, setVoiceSupported] = useState(false)
+  const [isListening, setIsListening] = useState(false)
+  const [voiceError, setVoiceError] = useState<string | null>(null)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
+  const recognitionRef = useRef<BrowserSpeechRecognition | null>(null)
+  const dictationBaseRef = useRef('')
 
   const handleSend = async () => {
     if ((message.trim() || attachments.length > 0) && !disabled) {
+      if (isListening) {
+        recognitionRef.current?.stop()
+        setIsListening(false)
+      }
+
       onSend({
         message: message.trim(),
         attachments,
+        quickMode,
       })
       setMessage('')
       setAttachments([])
@@ -98,7 +150,7 @@ export function FloatingComposer({
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault()
-      handleSend()
+      void handleSend()
     }
   }
 
@@ -108,6 +160,84 @@ export function FloatingComposer({
       textareaRef.current.style.height = `${Math.min(textareaRef.current.scrollHeight, 200)}px`
     }
   }, [message])
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+
+    const typedWindow = window as Window & {
+      SpeechRecognition?: SpeechRecognitionCtor
+      webkitSpeechRecognition?: SpeechRecognitionCtor
+    }
+    const SpeechRecognitionApi = typedWindow.SpeechRecognition || typedWindow.webkitSpeechRecognition
+
+    if (!SpeechRecognitionApi) {
+      setVoiceSupported(false)
+      return
+    }
+
+    const recognition = new SpeechRecognitionApi()
+    recognition.lang = 'ru-RU'
+    recognition.continuous = true
+    recognition.interimResults = true
+
+    recognition.onresult = (event) => {
+      let transcript = ''
+      for (let i = 0; i < event.results.length; i += 1) {
+        const phrase = event.results[i]?.[0]?.transcript
+        if (phrase) transcript += phrase
+      }
+
+      if (!transcript.trim()) return
+      const merged = `${dictationBaseRef.current}${transcript}`.replace(/ {2,}/g, ' ')
+      setMessage(merged.trimStart())
+    }
+
+    recognition.onerror = (event) => {
+      setVoiceError(mapVoiceError(event.error))
+      setIsListening(false)
+    }
+
+    recognition.onend = () => {
+      setIsListening(false)
+    }
+
+    recognitionRef.current = recognition
+    setVoiceSupported(true)
+
+    return () => {
+      recognition.onresult = null
+      recognition.onerror = null
+      recognition.onend = null
+      recognition.abort()
+      recognitionRef.current = null
+    }
+  }, [])
+
+  const toggleVoiceInput = () => {
+    if (disabled) return
+
+    if (!voiceSupported || !recognitionRef.current) {
+      setVoiceError('Голосовой ввод не поддерживается в этом браузере')
+      return
+    }
+
+    if (isListening) {
+      recognitionRef.current.stop()
+      setIsListening(false)
+      return
+    }
+
+    dictationBaseRef.current = message.trim() ? `${message.trim()} ` : ''
+    setVoiceError(null)
+
+    try {
+      recognitionRef.current.start()
+      setIsListening(true)
+    } catch {
+      setVoiceError('Не удалось запустить голосовой ввод')
+      setIsListening(false)
+    }
+  }
 
   const handleFilePick = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(event.target.files ?? [])
@@ -151,10 +281,7 @@ export function FloatingComposer({
       initial={{ opacity: 0, y: 20 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.2, ease: 'easeOut' }}
-      className={cn(
-        'w-full max-w-3xl mx-auto',
-        className
-      )}
+      className={cn('w-full max-w-3xl mx-auto', className)}
     >
       <div
         className={cn(
@@ -177,7 +304,6 @@ export function FloatingComposer({
           disabled={disabled}
         />
 
-        {/* Textarea */}
         <div className="p-3">
           <Textarea
             ref={textareaRef}
@@ -218,7 +344,6 @@ export function FloatingComposer({
           </div>
         )}
 
-        {/* Actions Bar */}
         <div className="flex items-center justify-between gap-3 px-3 pb-3">
           <div className="flex min-w-0 items-center gap-2">
             <Button
@@ -236,9 +361,39 @@ export function FloatingComposer({
               type="button"
               variant="ghost"
               size="icon"
-              className="h-8 w-8 text-sky-500 hover:text-sky-600 dark:hover:text-sky-300"
+              className={cn(
+                'h-8 w-8',
+                isListening
+                  ? 'text-red-500 hover:text-red-400'
+                  : voiceSupported
+                    ? 'text-violet-500 hover:text-violet-400'
+                    : 'text-muted-foreground'
+              )}
+              disabled={disabled || !voiceSupported}
+              onClick={toggleVoiceInput}
+              title={
+                !voiceSupported
+                  ? 'Голосовой ввод не поддерживается'
+                  : isListening
+                    ? 'Остановить диктовку'
+                    : 'Голосовой ввод'
+              }
+            >
+              {isListening ? <MicOff className="h-4 w-4" /> : <Mic className="h-4 w-4" />}
+            </Button>
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon"
+              className={cn(
+                'h-8 w-8 transition-colors',
+                quickMode
+                  ? 'text-sky-500 bg-sky-500/10 hover:bg-sky-500/20 hover:text-sky-400'
+                  : 'text-sky-500 hover:text-sky-600 dark:hover:text-sky-300'
+              )}
               disabled={disabled}
-              title="Быстрый режим"
+              onClick={() => onQuickModeChange(!quickMode)}
+              title={quickMode ? 'Быстрый режим: включен' : 'Быстрый режим: выключен'}
             >
               <Sparkles className="h-4 w-4" />
             </Button>
@@ -266,10 +421,17 @@ export function FloatingComposer({
             {modelsLoading && (
               <span className="text-[11px] text-muted-foreground">Обновляю модели…</span>
             )}
-            <span
-              className="truncate text-[11px] text-muted-foreground"
-              title={selectedModel}
-            >
+            {quickMode && (
+              <span className="rounded-full border border-sky-500/40 bg-sky-500/10 px-1.5 py-0.5 text-[10px] text-sky-600 dark:text-sky-300">
+                quick
+              </span>
+            )}
+            {isListening && (
+              <span className="rounded-full border border-red-500/40 bg-red-500/10 px-1.5 py-0.5 text-[10px] text-red-600 dark:text-red-300">
+                слушаю...
+              </span>
+            )}
+            <span className="truncate text-[11px] text-muted-foreground" title={selectedModel}>
               {selectedModel}
             </span>
           </div>
@@ -282,15 +444,20 @@ export function FloatingComposer({
                 ? 'bg-sky-600 text-white hover:bg-sky-500 dark:bg-sky-500 dark:hover:bg-sky-400'
                 : 'bg-zinc-200 dark:bg-zinc-800 text-muted-foreground cursor-not-allowed'
             )}
-            onClick={handleSend}
+            onClick={() => void handleSend()}
             disabled={!canSend || disabled}
           >
             <Send className="h-4 w-4" />
           </Button>
         </div>
+
+        {voiceError && (
+          <p className="px-3 pb-2 text-[11px] text-amber-600 dark:text-amber-300">
+            {voiceError}
+          </p>
+        )}
       </div>
 
-      {/* Hint */}
       <p className="text-center text-xs text-muted-foreground mt-2">
         ИИ может ошибаться. Проверяйте важные данные.
       </p>

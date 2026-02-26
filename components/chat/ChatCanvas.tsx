@@ -62,10 +62,24 @@ export function ChatCanvas({ className }: ChatCanvasProps) {
   const [isTyping, setIsTyping] = React.useState(false)
   const [models, setModels] = React.useState<string[]>([selectedModel])
   const [modelsLoading, setModelsLoading] = React.useState(false)
+  const [quickMode, setQuickMode] = React.useState(false)
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
   }, [activeChat?.messages])
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+    const saved = window.localStorage.getItem('napoleon_quick_mode')
+    if (saved === '1') {
+      setQuickMode(true)
+    }
+  }, [])
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+    window.localStorage.setItem('napoleon_quick_mode', quickMode ? '1' : '0')
+  }, [quickMode])
 
   useEffect(() => {
     let active = true
@@ -103,9 +117,14 @@ export function ChatCanvas({ className }: ChatCanvasProps) {
     }
   }, [selectedModel, setSelectedModel])
 
-  const handleSend = async (payload: { message: string; attachments: ComposerAttachment[] }) => {
+  const handleSend = async (payload: {
+    message: string
+    attachments: ComposerAttachment[]
+    quickMode: boolean
+  }) => {
     const content = payload.message.trim()
     const attachments = payload.attachments
+    const isQuick = payload.quickMode
     let chat = activeChat
 
     const chatTitleSource = content || attachments[0]?.name || 'Новый чат'
@@ -139,10 +158,10 @@ export function ChatCanvas({ className }: ChatCanvasProps) {
     const sentLabel = content || `${attachments.length} вложений`
     addLog({
       level: 'info',
-      message: `Отправлено: "${sentLabel.slice(0, 50)}..." (${selectedModel})`,
+      message: `Отправлено: "${sentLabel.slice(0, 50)}..." (${selectedModel}${isQuick ? ', quick' : ''})`,
     })
     setIsTyping(true)
-    addLog({ level: 'info', message: 'Отправляю запрос в OpenClaw...' })
+    addLog({ level: 'info', message: `Отправляю запрос в OpenClaw${isQuick ? ' (быстрый режим)' : ''}...` })
 
     const assistantMessageId = Math.random().toString(36).slice(2)
     const assistantMessage: Message = {
@@ -167,6 +186,7 @@ export function ChatCanvas({ className }: ChatCanvasProps) {
           message: content,
           sessionId,
           model: selectedModel,
+          quickMode: isQuick,
           attachments: attachments.map((attachment) => ({
             name: attachment.name,
             type: attachment.type,
@@ -344,6 +364,8 @@ export function ChatCanvas({ className }: ChatCanvasProps) {
           onSend={handleSend}
           selectedModel={selectedModel}
           onModelChange={setSelectedModel}
+          quickMode={quickMode}
+          onQuickModeChange={setQuickMode}
           models={models}
           modelsLoading={modelsLoading}
           disabled={isTyping}
