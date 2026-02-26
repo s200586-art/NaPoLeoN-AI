@@ -29,8 +29,25 @@ interface DashboardSummaryResponse {
     fitbitSleepMinutes: number | null
     fitbitRestingHeartRate: number | null
   }
+  fitbit: FitbitInsights
   services: ServiceSummary[]
   activities: ActivityItem[]
+}
+
+interface FitbitTrendDay {
+  date: string
+  steps: number | null
+}
+
+interface FitbitInsights {
+  goalSteps: number | null
+  goalSleepMinutes: number | null
+  progressStepsPct: number | null
+  progressSleepPct: number | null
+  weeklySteps: FitbitTrendDay[]
+  weeklyAverageSteps: number | null
+  weeklyBestSteps: number | null
+  weeklyGoalDays: number | null
 }
 
 interface GmailLoadResult {
@@ -66,11 +83,19 @@ interface FitbitLoadResult {
     sleepMinutes: number | null
     restingHeartRate: number | null
   }
+  insights: FitbitInsights
   activities: ActivityItem[]
 }
 
 interface FitbitStepsResponse {
-  'activities-steps'?: Array<{ value?: string }>
+  'activities-steps'?: Array<{ dateTime?: string; value?: string }>
+}
+
+interface FitbitGoalsResponse {
+  goals?: {
+    steps?: number | string
+    sleep?: number | string
+  }
 }
 
 interface FitbitHeartResponse {
@@ -83,6 +108,7 @@ interface FitbitSleepResponse {
 }
 
 const REQUEST_TIMEOUT_MS = Number(process.env.DASHBOARD_REQUEST_TIMEOUT_MS || 8000)
+const FITBIT_SLEEP_GOAL_MINUTES = readOptionalIntEnv('FITBIT_SLEEP_GOAL_MINUTES', 120, 900)
 
 function toIsoTime(value?: string) {
   if (!value) return new Date().toISOString()
@@ -100,19 +126,29 @@ function toNumber(value: unknown): number | null {
   return null
 }
 
-function getDateInTimeZone(timeZone: string) {
+function readOptionalIntEnv(name: string, min: number, max: number): number | null {
+  const raw = Number(process.env[name])
+  if (!Number.isFinite(raw)) return null
+  return Math.min(max, Math.max(min, Math.floor(raw)))
+}
+
+function toPercent(current: number | null, goal: number | null) {
+  if (current === null || goal === null || goal <= 0) return null
+  return Math.round((current / goal) * 100)
+}
+
+function toLocalizedDate(date: Date, timeZone: string) {
   try {
     const parts = new Intl.DateTimeFormat('en-US', {
       timeZone,
       year: 'numeric',
       month: '2-digit',
       day: '2-digit',
-    }).formatToParts(new Date())
+    }).formatToParts(date)
 
     const year = parts.find((part) => part.type === 'year')?.value
     const month = parts.find((part) => part.type === 'month')?.value
     const day = parts.find((part) => part.type === 'day')?.value
-
     if (year && month && day) {
       return `${year}-${month}-${day}`
     }
@@ -120,7 +156,38 @@ function getDateInTimeZone(timeZone: string) {
     // ignore invalid timezone
   }
 
-  return new Date().toISOString().slice(0, 10)
+  return date.toISOString().slice(0, 10)
+}
+
+function getDateInTimeZone(timeZone: string) {
+  return toLocalizedDate(new Date(), timeZone)
+}
+
+function getRecentDatesInTimeZone(timeZone: string, days: number) {
+  const now = new Date()
+  const dates: string[] = []
+
+  for (let offset = days - 1; offset >= 0; offset -= 1) {
+    const date = new Date(now)
+    date.setUTCDate(date.getUTCDate() - offset)
+    dates.push(toLocalizedDate(date, timeZone))
+  }
+
+  return dates
+}
+
+function emptyFitbitInsights(overrides?: Partial<FitbitInsights>): FitbitInsights {
+  return {
+    goalSteps: null,
+    goalSleepMinutes: FITBIT_SLEEP_GOAL_MINUTES,
+    progressStepsPct: null,
+    progressSleepPct: null,
+    weeklySteps: [],
+    weeklyAverageSteps: null,
+    weeklyBestSteps: null,
+    weeklyGoalDays: null,
+    ...overrides,
+  }
 }
 
 async function fetchJson<T>(url: string, init?: RequestInit): Promise<T> {
@@ -383,6 +450,9 @@ async function loadFitbit(): Promise<FitbitLoadResult> {
   const token = process.env.FITBIT_ACCESS_TOKEN
   const userId = process.env.FITBIT_USER_ID || '-'
   const timeZone = process.env.FITBIT_TIMEZONE || 'UTC'
+  const weekDates = getRecentDatesInTimeZone(timeZone, 7)
+  const fallbackWeeklySteps = weekDates.map((day) => ({ date: day, steps: null as number | null }))
+  const fallbackInsights = emptyFitbitInsights({ weeklySteps: fallbackWeeklySteps })
 
   if (!token) {
     return {
@@ -397,15 +467,17 @@ async function loadFitbit(): Promise<FitbitLoadResult> {
         sleepMinutes: null as number | null,
         restingHeartRate: null as number | null,
       },
+      insights: fallbackInsights,
       activities: [] as ActivityItem[],
     }
   }
 
-  const date = getDateInTimeZone(timeZone)
+  const date = weekDates[weekDates.length - 1] || getDateInTimeZone(timeZone)
+  const weekStartDate = weekDates[0] || date
   const encodedUserId = encodeURIComponent(userId)
   const headers = { authorization: `Bearer ${token}` }
 
-  const [stepsResult, sleepResult, heartResult] = await Promise.allSettled([
+  const [stepsResult, sleepResult, heartResult, goalsResult, weeklyStepsResult] = await Promise.allSettled([
     fetchJson<FitbitStepsResponse>(
       `https://api.fitbit.com/1/user/${encodedUserId}/activities/steps/date/${date}/${date}.json`,
       { headers }
@@ -418,12 +490,23 @@ async function loadFitbit(): Promise<FitbitLoadResult> {
       `https://api.fitbit.com/1/user/${encodedUserId}/activities/heart/date/${date}/${date}.json`,
       { headers }
     ),
+    fetchJson<FitbitGoalsResponse>(
+      `https://api.fitbit.com/1/user/${encodedUserId}/activities/goals/daily.json`,
+      { headers }
+    ),
+    fetchJson<FitbitStepsResponse>(
+      `https://api.fitbit.com/1/user/${encodedUserId}/activities/steps/date/${weekStartDate}/${date}.json`,
+      { headers }
+    ),
   ])
 
   const errors: string[] = []
   let steps: number | null = null
   let sleepMinutes: number | null = null
   let restingHeartRate: number | null = null
+  let goalSteps: number | null = null
+  let goalSleepMinutes: number | null = FITBIT_SLEEP_GOAL_MINUTES
+  let weeklySteps = fallbackWeeklySteps
 
   if (stepsResult.status === 'fulfilled') {
     steps = toNumber(stepsResult.value['activities-steps']?.[0]?.value)
@@ -445,6 +528,63 @@ async function loadFitbit(): Promise<FitbitLoadResult> {
     restingHeartRate = toNumber(heartResult.value['activities-heart']?.[0]?.value?.restingHeartRate)
   } else {
     errors.push(heartResult.reason instanceof Error ? heartResult.reason.message : 'heart')
+  }
+
+  if (goalsResult.status === 'fulfilled') {
+    goalSteps = toNumber(goalsResult.value.goals?.steps)
+    if (goalSleepMinutes === null) {
+      goalSleepMinutes = toNumber(goalsResult.value.goals?.sleep)
+    }
+  } else {
+    errors.push(goalsResult.reason instanceof Error ? goalsResult.reason.message : 'goals')
+  }
+
+  if (weeklyStepsResult.status === 'fulfilled') {
+    const byDate = new Map<string, number | null>()
+    for (const item of weeklyStepsResult.value['activities-steps'] || []) {
+      if (typeof item.dateTime !== 'string') continue
+      byDate.set(item.dateTime, toNumber(item.value))
+    }
+    weeklySteps = weekDates.map((day) => ({
+      date: day,
+      steps: byDate.has(day) ? byDate.get(day) ?? null : null,
+    }))
+  } else {
+    errors.push(weeklyStepsResult.reason instanceof Error ? weeklyStepsResult.reason.message : 'weekly-steps')
+  }
+
+  if (weeklySteps.length > 0 && typeof steps === 'number') {
+    const lastIndex = weeklySteps.length - 1
+    if (weeklySteps[lastIndex].steps === null) {
+      weeklySteps[lastIndex] = { ...weeklySteps[lastIndex], steps }
+    }
+  }
+
+  const weeklyNumericSteps = weeklySteps
+    .map((day) => day.steps)
+    .filter((value): value is number => typeof value === 'number')
+  const weeklyAverageSteps =
+    weeklyNumericSteps.length > 0
+      ? Math.round(weeklyNumericSteps.reduce((sum, value) => sum + value, 0) / weeklyNumericSteps.length)
+      : null
+  const weeklyBestSteps = weeklyNumericSteps.length > 0 ? Math.max(...weeklyNumericSteps) : null
+  const weeklyGoalDays =
+    goalSteps !== null
+      ? weeklyNumericSteps.filter((value) => value >= goalSteps).length
+      : null
+
+  const progressStepsPct = toPercent(steps, goalSteps)
+  const progressSleepPct = toPercent(sleepMinutes, goalSleepMinutes)
+
+  const insights: FitbitInsights = {
+    goalSteps,
+    goalSleepMinutes,
+    progressStepsPct,
+    progressSleepPct,
+    weeklySteps,
+    weeklyAverageSteps,
+    weeklyBestSteps,
+    weeklyGoalDays,
   }
 
   const availableMetrics = [steps, sleepMinutes, restingHeartRate].filter(
@@ -473,6 +613,13 @@ async function loadFitbit(): Promise<FitbitLoadResult> {
       time: new Date().toISOString(),
     })
   }
+  if (weeklyAverageSteps !== null) {
+    activities.push({
+      source: 'fitbit',
+      title: `Fitbit: среднее за 7 дн ${weeklyAverageSteps.toLocaleString('ru-RU')} шагов`,
+      time: new Date().toISOString(),
+    })
+  }
 
   if (availableMetrics.length === 0 && errors.length > 0) {
     return {
@@ -483,12 +630,14 @@ async function loadFitbit(): Promise<FitbitLoadResult> {
         detail: errors[0],
       },
       metrics: { steps, sleepMinutes, restingHeartRate },
+      insights,
       activities,
     }
   }
 
   const detailParts: string[] = []
   if (steps !== null) detailParts.push(`${steps.toLocaleString('ru-RU')} шагов`)
+  if (progressStepsPct !== null) detailParts.push(`цель ${progressStepsPct}%`)
   if (sleepMinutes !== null) detailParts.push(`${(sleepMinutes / 60).toFixed(1)} ч сна`)
   if (restingHeartRate !== null) detailParts.push(`${restingHeartRate} bpm`)
   if (errors.length > 0) detailParts.push('частично')
@@ -502,6 +651,7 @@ async function loadFitbit(): Promise<FitbitLoadResult> {
       lastSync: new Date().toISOString(),
     },
     metrics: { steps, sleepMinutes, restingHeartRate },
+    insights,
     activities,
   }
 }
@@ -532,6 +682,7 @@ export async function GET(req: NextRequest) {
       fitbitSleepMinutes: fitbit.metrics.sleepMinutes,
       fitbitRestingHeartRate: fitbit.metrics.restingHeartRate,
     },
+    fitbit: fitbit.insights,
     services: [gmail.service, telegram.service, x.service, fitbit.service],
     activities: [...gmail.activities, ...telegram.activities, ...x.activities, ...fitbit.activities]
       .sort((a, b) => new Date(b.time).getTime() - new Date(a.time).getTime())

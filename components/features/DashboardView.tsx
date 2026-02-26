@@ -44,6 +44,16 @@ interface DashboardSummary {
     fitbitSleepMinutes: number | null
     fitbitRestingHeartRate: number | null
   }
+  fitbit?: {
+    goalSteps: number | null
+    goalSleepMinutes: number | null
+    progressStepsPct: number | null
+    progressSleepPct: number | null
+    weeklySteps: Array<{ date: string; steps: number | null }>
+    weeklyAverageSteps: number | null
+    weeklyBestSteps: number | null
+    weeklyGoalDays: number | null
+  }
   services: ServiceSummary[]
   activities: ActivityItem[]
 }
@@ -51,6 +61,17 @@ interface DashboardSummary {
 function formatMetric(value: number | null | undefined) {
   if (typeof value !== 'number') return '—'
   return value.toLocaleString('ru-RU')
+}
+
+function formatPercent(value: number | null | undefined) {
+  if (typeof value !== 'number') return '—'
+  return `${value}%`
+}
+
+function formatWeekdayLabel(dateValue: string) {
+  const date = new Date(`${dateValue}T00:00:00`)
+  if (Number.isNaN(date.getTime())) return '—'
+  return new Intl.DateTimeFormat('ru-RU', { weekday: 'short' }).format(date)
 }
 
 function formatRelativeTime(iso?: string) {
@@ -308,6 +329,12 @@ export function DashboardView() {
 
   const activityItems = summary?.activities ?? []
   const metrics = summary?.metrics
+  const fitbit = summary?.fitbit
+  const weeklySteps = fitbit?.weeklySteps ?? []
+  const weeklyStepsMax = weeklySteps.reduce((max, day) => {
+    if (typeof day.steps !== 'number') return max
+    return Math.max(max, day.steps)
+  }, 0)
 
   const handleRefresh = () => {
     setRefreshKey((value) => value + 1)
@@ -432,6 +459,104 @@ export function DashboardView() {
           iconClassName="bg-fuchsia-500/10 dark:bg-fuchsia-500/15"
           iconColorClassName="text-fuchsia-500"
         />
+      </div>
+
+      <div className="mb-8 grid grid-cols-1 gap-4 xl:grid-cols-2">
+        <motion.section
+          initial={{ opacity: 0, y: 10 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="relative overflow-hidden rounded-xl border border-border bg-card p-5 dark:bg-zinc-900/50"
+        >
+          <div className="pointer-events-none absolute inset-x-0 top-0 h-[2px] bg-gradient-to-r from-emerald-500/70 via-teal-500/35 to-transparent" />
+          <h2 className="mb-1 text-sm font-semibold">Fitbit: цели и прогресс</h2>
+          <p className="mb-4 text-xs text-muted-foreground">Шаги и сон за сегодня относительно целей</p>
+
+          <div className="space-y-4">
+            <div>
+              <div className="mb-1 flex items-center justify-between text-xs">
+                <span className="text-muted-foreground">Шаги</span>
+                <span className="font-medium">
+                  {formatMetric(metrics?.fitbitSteps)} / {formatMetric(fitbit?.goalSteps)}
+                </span>
+              </div>
+              <div className="h-2 rounded-full bg-zinc-200 dark:bg-zinc-800">
+                <div
+                  className="h-2 rounded-full bg-emerald-500 transition-all"
+                  style={{
+                    width: `${
+                      typeof fitbit?.progressStepsPct === 'number'
+                        ? Math.max(4, Math.min(100, fitbit.progressStepsPct))
+                        : 0
+                    }%`,
+                  }}
+                />
+              </div>
+              <p className="mt-1 text-[11px] text-muted-foreground">Прогресс: {formatPercent(fitbit?.progressStepsPct)}</p>
+            </div>
+
+            <div>
+              <div className="mb-1 flex items-center justify-between text-xs">
+                <span className="text-muted-foreground">Сон (минуты)</span>
+                <span className="font-medium">
+                  {formatMetric(metrics?.fitbitSleepMinutes)} / {formatMetric(fitbit?.goalSleepMinutes)}
+                </span>
+              </div>
+              <div className="h-2 rounded-full bg-zinc-200 dark:bg-zinc-800">
+                <div
+                  className="h-2 rounded-full bg-cyan-500 transition-all"
+                  style={{
+                    width: `${
+                      typeof fitbit?.progressSleepPct === 'number'
+                        ? Math.max(4, Math.min(100, fitbit.progressSleepPct))
+                        : 0
+                    }%`,
+                  }}
+                />
+              </div>
+              <p className="mt-1 text-[11px] text-muted-foreground">Прогресс: {formatPercent(fitbit?.progressSleepPct)}</p>
+            </div>
+          </div>
+        </motion.section>
+
+        <motion.section
+          initial={{ opacity: 0, y: 10 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="relative overflow-hidden rounded-xl border border-border bg-card p-5 dark:bg-zinc-900/50"
+        >
+          <div className="pointer-events-none absolute inset-x-0 top-0 h-[2px] bg-gradient-to-r from-cyan-500/70 via-blue-500/35 to-transparent" />
+          <h2 className="mb-1 text-sm font-semibold">Fitbit: динамика за 7 дней</h2>
+          <p className="mb-4 text-xs text-muted-foreground">
+            Среднее: {formatMetric(fitbit?.weeklyAverageSteps)} • Лучший день: {formatMetric(fitbit?.weeklyBestSteps)} • Дней в цели: {typeof fitbit?.weeklyGoalDays === 'number' ? fitbit.weeklyGoalDays : '—'}
+          </p>
+
+          {weeklySteps.length === 0 ? (
+            <p className="text-sm text-muted-foreground">Пока нет недельных данных</p>
+          ) : (
+            <div className="grid grid-cols-7 items-end gap-2">
+              {weeklySteps.map((day) => {
+                const value = day.steps
+                const ratio = typeof value === 'number' && weeklyStepsMax > 0 ? value / weeklyStepsMax : 0
+                const barHeight = Math.max(10, Math.round(ratio * 72))
+
+                return (
+                  <div key={day.date} className="flex flex-col items-center gap-1">
+                    <span className="text-[10px] text-muted-foreground">
+                      {typeof value === 'number' ? Math.round(value / 1000) : '—'}k
+                    </span>
+                    <div className="flex h-20 items-end">
+                      <div
+                        className="w-7 rounded-t-md bg-gradient-to-t from-cyan-500 to-sky-400"
+                        style={{ height: `${barHeight}px`, opacity: typeof value === 'number' ? 1 : 0.2 }}
+                        title={`${day.date}: ${typeof value === 'number' ? value.toLocaleString('ru-RU') : 'нет данных'}`}
+                      />
+                    </div>
+                    <span className="text-[10px] uppercase text-muted-foreground">{formatWeekdayLabel(day.date)}</span>
+                  </div>
+                )
+              })}
+            </div>
+          )}
+        </motion.section>
       </div>
 
       <div className="mb-8">
