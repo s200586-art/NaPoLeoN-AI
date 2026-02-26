@@ -6,7 +6,9 @@ import {
   AlertTriangle,
   CheckCircle2,
   Clipboard,
+  Download,
   ExternalLink,
+  History,
   Inbox,
   RefreshCw,
   Send,
@@ -15,7 +17,12 @@ import {
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { Message, useAppStore } from '@/lib/store'
-import { ShareInboxItem, ShareInboxStatus, isShareInboxStatus } from '@/lib/share-inbox'
+import {
+  ShareInboxHistoryEntry,
+  ShareInboxItem,
+  ShareInboxStatus,
+  isShareInboxStatus,
+} from '@/lib/share-inbox'
 
 interface ShareInboxResponse {
   generatedAt: string
@@ -23,6 +30,25 @@ interface ShareInboxResponse {
   items: ShareInboxItem[]
   shareEndpoint: string
   tokenEnabled: boolean
+}
+
+interface ProjectsDriveResponse {
+  connected: boolean
+  activeProjectId: string | null
+  projects: Array<{ id: string; name: string }>
+  error?: string
+}
+
+interface ExportShareResponse {
+  ok: boolean
+  exportedCount: number
+  missingItemIds: string[]
+  file?: {
+    id: string
+    name: string
+    webViewLink?: string
+    projectId: string
+  }
 }
 
 type StatusFilter = 'all' | ShareInboxStatus
@@ -58,6 +84,7 @@ function isShareInboxItem(value: unknown): value is ShareInboxItem {
     typeof item.title === 'string' &&
     typeof item.content === 'string' &&
     Array.isArray(item.tags) &&
+    Array.isArray(item.history) &&
     typeof item.createdAt === 'string' &&
     typeof item.updatedAt === 'string' &&
     isShareInboxStatus(item.status)
@@ -78,6 +105,16 @@ function isShareInboxResponse(value: unknown): value is ShareInboxResponse {
   }
 
   return candidate.items.every((item) => isShareInboxItem(item))
+}
+
+function isProjectsResponse(value: unknown): value is ProjectsDriveResponse {
+  if (!value || typeof value !== 'object') return false
+  const candidate = value as Partial<ProjectsDriveResponse>
+  return (
+    typeof candidate.connected === 'boolean' &&
+    Array.isArray(candidate.projects) &&
+    candidate.projects.every((project) => project && typeof project.id === 'string' && typeof project.name === 'string')
+  )
 }
 
 function formatRelativeTime(iso?: string) {
@@ -110,11 +147,35 @@ function statusBadgeClass(status: ShareInboxStatus) {
   return 'border-emerald-500/40 bg-emerald-500/10 text-emerald-600 dark:text-emerald-300'
 }
 
+function historyTypeLabel(entry: ShareInboxHistoryEntry) {
+  if (entry.type === 'created') return 'Создано'
+  if (entry.type === 'status_changed') {
+    if (entry.fromStatus && entry.toStatus) {
+      return `Статус: ${entry.fromStatus} -> ${entry.toStatus}`
+    }
+    return 'Статус изменён'
+  }
+  if (entry.type === 'moved_to_chat') return 'Перенос в чат'
+  if (entry.type === 'exported_to_project') return 'Экспорт в проект'
+  return 'Событие'
+}
+
+function dedupeIds(ids: string[]) {
+  return Array.from(new Set(ids))
+}
+
 export function ShareInboxView() {
   const { addLog, addChat, addMessage, setViewMode } = useAppStore()
 
   const [response, setResponse] = useState<ShareInboxResponse | null>(null)
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('all')
+  const [selectedItemIds, setSelectedItemIds] = useState<string[]>([])
+  const [expandedHistoryIds, setExpandedHistoryIds] = useState<string[]>([])
+  const [projects, setProjects] = useState<Array<{ id: string; name: string }>>([])
+  const [selectedProjectId, setSelectedProjectId] = useState('')
+  const [isLoadingProjects, setIsLoadingProjects] = useState(false)
+  const [projectError, setProjectError] = useState<string | null>(null)
+  const [isExporting, setIsExporting] = useState(false)
   const [isLoading, setIsLoading] = useState(true)
   const [isRefreshing, setIsRefreshing] = useState(false)
   const [busyItemId, setBusyItemId] = useState<string | null>(null)
@@ -162,25 +223,11 @@ export function ShareInboxView() {
     [addLog, statusFilter]
   )
 
-  useEffect(() => {
-    void fetchInbox(false)
-  }, [fetchInbox])
-
-  const endpointUrl = useMemo(() => {
-    if (typeof window === 'undefined') return response?.shareEndpoint || '/api/share/inbox'
-    const endpoint = response?.shareEndpoint || '/api/share/inbox'
-    if (endpoint.startsWith('http')) return endpoint
-    return `${window.location.origin}${endpoint}`
-  }, [response?.shareEndpoint])
-
-  const updateStatus = async (itemId: string, status: ShareInboxStatus) => {
-    setBusyItemId(itemId)
+  const loadProjects = useCallback(async () => {
+    setIsLoadingProjects(true)
+    setProjectError(null)
     try {
-      const res = await fetch('/api/share/inbox', {
-        method: 'PATCH',
-        headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ id: itemId, status }),
-      })
+      const res = await fetch('/api/projects/drive', { method: 'GET', cache: 'no-store' })
       const payload = await res.json().catch(() => null)
       if (!res.ok) {
         const message =
@@ -190,6 +237,78 @@ export function ShareInboxView() {
         throw new Error(message)
       }
 
+      if (!isProjectsResponse(payload)) {
+        throw new Error('Некорректный ответ projects API')
+      }
+
+      setProjects(payload.projects)
+      setSelectedProjectId((current) => current || payload.activeProjectId || payload.projects[0]?.id || '')
+      if (!payload.connected && payload.error) {
+        setProjectError(payload.error)
+      }
+    } catch (loadError) {
+      const message = toErrorMessage(loadError)
+      setProjectError(message)
+    } finally {
+      setIsLoadingProjects(false)
+    }
+  }, [])
+
+  useEffect(() => {
+    void fetchInbox(false)
+  }, [fetchInbox])
+
+  useEffect(() => {
+    void loadProjects()
+  }, [loadProjects])
+
+  const items = response?.items || []
+  const counts = response?.counts || { all: 0, new: 0, in_progress: 0, done: 0 }
+
+  useEffect(() => {
+    const existing = new Set(items.map((item) => item.id))
+    setSelectedItemIds((current) => current.filter((id) => existing.has(id)))
+    setExpandedHistoryIds((current) => current.filter((id) => existing.has(id)))
+  }, [items])
+
+  const endpointUrl = useMemo(() => {
+    if (typeof window === 'undefined') return response?.shareEndpoint || '/api/share/inbox'
+    const endpoint = response?.shareEndpoint || '/api/share/inbox'
+    if (endpoint.startsWith('http')) return endpoint
+    return `${window.location.origin}${endpoint}`
+  }, [response?.shareEndpoint])
+
+  const selectedProject = useMemo(
+    () => projects.find((project) => project.id === selectedProjectId) || null,
+    [projects, selectedProjectId]
+  )
+
+  const selectedVisibleCount = useMemo(
+    () => items.filter((item) => selectedItemIds.includes(item.id)).length,
+    [items, selectedItemIds]
+  )
+
+  const patchItem = async (itemId: string, payload: Record<string, unknown>) => {
+    const res = await fetch('/api/share/inbox', {
+      method: 'PATCH',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ id: itemId, ...payload }),
+    })
+    const data = await res.json().catch(() => null)
+    if (!res.ok) {
+      const message =
+        data && typeof data === 'object' && 'error' in data
+          ? String((data as { error?: unknown }).error)
+          : `HTTP ${res.status}`
+      throw new Error(message)
+    }
+    return data
+  }
+
+  const updateStatus = async (itemId: string, status: ShareInboxStatus) => {
+    setBusyItemId(itemId)
+    try {
+      await patchItem(itemId, { status })
       await fetchInbox(true)
     } catch (statusError) {
       const message = toErrorMessage(statusError)
@@ -254,13 +373,95 @@ export function ShareInboxView() {
     setViewMode('chat')
     addLog({ level: 'info', message: `Share Inbox: перенесено в чат "${chat.title}"` })
 
-    if (item.status === 'new') {
-      await updateStatus(item.id, 'in_progress')
+    setBusyItemId(item.id)
+    try {
+      await patchItem(item.id, {
+        status: item.status === 'new' ? 'in_progress' : item.status,
+        action: 'moved_to_chat',
+        note: `Перенесено в чат "${chat.title}"`,
+      })
+      await fetchInbox(true)
+    } catch (patchError) {
+      const message = toErrorMessage(patchError)
+      addLog({ level: 'error', message: `Share Inbox: ${message}` })
+    } finally {
+      setBusyItemId(null)
     }
   }
 
-  const counts = response?.counts || { all: 0, new: 0, in_progress: 0, done: 0 }
-  const items = response?.items || []
+  const toggleItemSelection = (itemId: string) => {
+    setSelectedItemIds((current) => {
+      if (current.includes(itemId)) {
+        return current.filter((id) => id !== itemId)
+      }
+      return dedupeIds([...current, itemId])
+    })
+  }
+
+  const toggleSelectAllVisible = () => {
+    setSelectedItemIds((current) => {
+      const visibleIds = items.map((item) => item.id)
+      const allVisibleSelected = visibleIds.every((id) => current.includes(id))
+      if (allVisibleSelected) {
+        return current.filter((id) => !visibleIds.includes(id))
+      }
+      return dedupeIds([...current, ...visibleIds])
+    })
+  }
+
+  const toggleHistory = (itemId: string) => {
+    setExpandedHistoryIds((current) => {
+      if (current.includes(itemId)) {
+        return current.filter((id) => id !== itemId)
+      }
+      return [...current, itemId]
+    })
+  }
+
+  const exportSelected = async () => {
+    if (selectedItemIds.length === 0) {
+      addLog({ level: 'warn', message: 'Share Inbox: выбери карточки для экспорта' })
+      return
+    }
+    if (!selectedProjectId) {
+      addLog({ level: 'warn', message: 'Share Inbox: выбери проект для экспорта' })
+      return
+    }
+
+    setIsExporting(true)
+    try {
+      const res = await fetch('/api/projects/drive/export-share', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({
+          itemIds: selectedItemIds,
+          projectId: selectedProjectId,
+          projectName: selectedProject?.name,
+        }),
+      })
+      const payload = await res.json().catch(() => null)
+      if (!res.ok) {
+        const message =
+          payload && typeof payload === 'object' && 'error' in payload
+            ? String((payload as { error?: unknown }).error)
+            : `HTTP ${res.status}`
+        throw new Error(message)
+      }
+
+      const data = payload as ExportShareResponse
+      addLog({
+        level: 'success',
+        message: `Share Inbox: экспортировано ${data.exportedCount} карточек в "${selectedProject?.name || selectedProjectId}"`,
+      })
+      setSelectedItemIds([])
+      await fetchInbox(true)
+    } catch (exportError) {
+      const message = toErrorMessage(exportError)
+      addLog({ level: 'error', message: `Share Inbox: ${message}` })
+    } finally {
+      setIsExporting(false)
+    }
+  }
 
   return (
     <div className="flex h-full min-h-0 flex-col p-6">
@@ -348,7 +549,7 @@ export function ShareInboxView() {
         </div>
       )}
 
-      <div className="mb-4 flex flex-wrap gap-2">
+      <div className="mb-4 flex flex-wrap items-center gap-2">
         {(Object.keys(STATUS_LABELS) as StatusFilter[]).map((status) => (
           <button
             key={status}
@@ -365,6 +566,68 @@ export function ShareInboxView() {
           </button>
         ))}
       </div>
+
+      <motion.section
+        initial={{ opacity: 0, y: 10 }}
+        animate={{ opacity: 1, y: 0 }}
+        className="relative mb-4 overflow-hidden rounded-xl border border-border bg-card p-4 dark:bg-zinc-900/50"
+      >
+        <div className="pointer-events-none absolute inset-x-0 top-0 h-[2px] bg-gradient-to-r from-emerald-500/70 via-cyan-500/35 to-transparent" />
+        <div className="flex flex-wrap items-center gap-2">
+          <button
+            type="button"
+            onClick={toggleSelectAllVisible}
+            className="rounded-lg border border-zinc-300/70 px-3 py-1.5 text-xs text-zinc-700 transition-colors hover:bg-zinc-100 dark:border-zinc-700 dark:text-zinc-300 dark:hover:bg-zinc-800"
+          >
+            {selectedVisibleCount === items.length && items.length > 0 ? 'Снять выбор (видимые)' : 'Выбрать все (видимые)'}
+          </button>
+
+          <select
+            value={selectedProjectId}
+            onChange={(event) => setSelectedProjectId(event.target.value)}
+            disabled={isLoadingProjects || projects.length === 0}
+            className="h-8 min-w-[220px] rounded-lg border border-zinc-300/70 bg-transparent px-2 text-xs text-zinc-700 outline-none transition-colors focus:border-emerald-500 dark:border-zinc-700 dark:text-zinc-300"
+          >
+            {projects.length === 0 ? (
+              <option value="">
+                {isLoadingProjects ? 'Загрузка проектов...' : 'Нет проектов'}
+              </option>
+            ) : (
+              projects.map((project) => (
+                <option key={project.id} value={project.id} className="bg-card text-foreground">
+                  {project.name}
+                </option>
+              ))
+            )}
+          </select>
+
+          <button
+            type="button"
+            onClick={() => void exportSelected()}
+            disabled={isExporting || selectedItemIds.length === 0 || !selectedProjectId}
+            className={cn(
+              'inline-flex h-8 items-center gap-1.5 rounded-lg border px-3 text-xs font-medium transition-colors',
+              isExporting || selectedItemIds.length === 0 || !selectedProjectId
+                ? 'cursor-not-allowed border-zinc-300 text-zinc-400 dark:border-zinc-700 dark:text-zinc-500'
+                : 'border-emerald-500/40 bg-emerald-500/10 text-emerald-700 hover:bg-emerald-500/20 dark:text-emerald-300'
+            )}
+          >
+            <Download className="h-3.5 w-3.5" />
+            {isExporting ? 'Экспорт...' : `Экспорт в проект (${selectedItemIds.length})`}
+          </button>
+
+          <button
+            type="button"
+            onClick={() => void loadProjects()}
+            className="rounded-lg border border-zinc-300/70 px-3 py-1.5 text-xs text-zinc-700 transition-colors hover:bg-zinc-100 dark:border-zinc-700 dark:text-zinc-300 dark:hover:bg-zinc-800"
+          >
+            Обновить проекты
+          </button>
+        </div>
+        {projectError && (
+          <p className="mt-2 text-xs text-amber-600 dark:text-amber-300">{projectError}</p>
+        )}
+      </motion.section>
 
       <div className="min-h-0 flex-1 overflow-y-auto pr-1">
         {isLoading ? (
@@ -385,17 +648,33 @@ export function ShareInboxView() {
           <div className="space-y-3">
             {items.map((item) => {
               const busy = busyItemId === item.id
+              const isSelected = selectedItemIds.includes(item.id)
+              const isHistoryOpen = expandedHistoryIds.includes(item.id)
+              const history = [...item.history].sort((left, right) => new Date(right.at).getTime() - new Date(left.at).getTime())
+              const visibleHistory = isHistoryOpen ? history : history.slice(0, 2)
+
               return (
                 <motion.article
                   key={item.id}
                   initial={{ opacity: 0, y: 8 }}
                   animate={{ opacity: 1, y: 0 }}
-                  className="relative overflow-hidden rounded-xl border border-border bg-card p-4 dark:bg-zinc-900/50"
+                  className={cn(
+                    'relative overflow-hidden rounded-xl border bg-card p-4 dark:bg-zinc-900/50',
+                    isSelected ? 'border-emerald-500/50' : 'border-border'
+                  )}
                 >
                   <div className="pointer-events-none absolute inset-x-0 top-0 h-[2px] bg-gradient-to-r from-sky-500/60 via-indigo-500/30 to-transparent" />
                   <div className="mb-2 flex flex-wrap items-start justify-between gap-3">
-                    <div className="min-w-0">
-                      <h3 className="truncate text-sm font-semibold">{item.title}</h3>
+                    <div className="min-w-0 flex-1">
+                      <div className="mb-1 flex items-center gap-2">
+                        <input
+                          type="checkbox"
+                          checked={isSelected}
+                          onChange={() => toggleItemSelection(item.id)}
+                          className="h-4 w-4 rounded border-zinc-400 text-emerald-600 focus:ring-emerald-500"
+                        />
+                        <h3 className="truncate text-sm font-semibold">{item.title}</h3>
+                      </div>
                       <div className="mt-1 flex flex-wrap items-center gap-2 text-[11px] text-muted-foreground">
                         <span className="rounded-full border border-zinc-300/70 px-2 py-0.5 dark:border-zinc-700">
                           {sourceLabel(item.source)}
@@ -439,6 +718,36 @@ export function ShareInboxView() {
                       )}
                     </div>
                   )}
+
+                  <div className="mt-3 rounded-lg border border-zinc-200/70 bg-zinc-50/70 p-2 dark:border-zinc-800 dark:bg-zinc-900/40">
+                    <div className="mb-1 flex items-center justify-between">
+                      <span className="inline-flex items-center gap-1 text-[11px] text-muted-foreground">
+                        <History className="h-3.5 w-3.5" />
+                        История
+                      </span>
+                      {history.length > 2 && (
+                        <button
+                          type="button"
+                          onClick={() => toggleHistory(item.id)}
+                          className="text-[11px] text-indigo-600 hover:underline dark:text-indigo-300"
+                        >
+                          {isHistoryOpen ? 'Свернуть' : `Показать всё (${history.length})`}
+                        </button>
+                      )}
+                    </div>
+                    <div className="space-y-1">
+                      {visibleHistory.length > 0 ? (
+                        visibleHistory.map((entry) => (
+                          <p key={entry.id} className="text-[11px] text-muted-foreground">
+                            {formatRelativeTime(entry.at)} · {historyTypeLabel(entry)}
+                            {entry.note ? ` — ${entry.note}` : ''}
+                          </p>
+                        ))
+                      ) : (
+                        <p className="text-[11px] text-muted-foreground">Нет событий</p>
+                      )}
+                    </div>
+                  </div>
 
                   <div className="mt-4 flex flex-wrap gap-2">
                     <button

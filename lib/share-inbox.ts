@@ -1,6 +1,23 @@
 export const SHARE_INBOX_STATUSES = ['new', 'in_progress', 'done'] as const
 
 export type ShareInboxStatus = (typeof SHARE_INBOX_STATUSES)[number]
+export const SHARE_HISTORY_TYPES = [
+  'created',
+  'status_changed',
+  'moved_to_chat',
+  'exported_to_project',
+  'note',
+] as const
+export type ShareInboxHistoryType = (typeof SHARE_HISTORY_TYPES)[number]
+
+export interface ShareInboxHistoryEntry {
+  id: string
+  type: ShareInboxHistoryType
+  at: string
+  note?: string
+  fromStatus?: ShareInboxStatus
+  toStatus?: ShareInboxStatus
+}
 
 export interface ShareInboxItem {
   id: string
@@ -11,6 +28,7 @@ export interface ShareInboxItem {
   author?: string
   tags: string[]
   status: ShareInboxStatus
+  history: ShareInboxHistoryEntry[]
   createdAt: string
   updatedAt: string
 }
@@ -32,6 +50,12 @@ export interface UpdateShareInboxItemInput {
   author?: string
   tags?: string[]
   status?: ShareInboxStatus
+  historyEntry?: {
+    type: ShareInboxHistoryType
+    note?: string
+    fromStatus?: ShareInboxStatus
+    toStatus?: ShareInboxStatus
+  }
 }
 
 const SOURCE_ALIASES: Record<string, string> = {
@@ -60,6 +84,10 @@ export function isShareInboxStatus(value: unknown): value is ShareInboxStatus {
   return typeof value === 'string' && SHARE_INBOX_STATUSES.includes(value as ShareInboxStatus)
 }
 
+export function isShareHistoryType(value: unknown): value is ShareInboxHistoryType {
+  return typeof value === 'string' && SHARE_HISTORY_TYPES.includes(value as ShareInboxHistoryType)
+}
+
 export function normalizeShareSource(value: unknown): string {
   if (typeof value !== 'string') return 'manual'
   const normalized = value.trim().toLowerCase()
@@ -86,6 +114,91 @@ export function mergeShareTags(...groups: Array<string[] | undefined>) {
     merged.push(...group)
   }
   return normalizeShareTags(merged)
+}
+
+function generateHistoryId() {
+  return `h_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 9)}`
+}
+
+function normalizeIso(value: unknown, fallback: string) {
+  if (typeof value !== 'string') return fallback
+  const date = new Date(value)
+  if (Number.isNaN(date.getTime())) return fallback
+  return date.toISOString()
+}
+
+export function createShareHistoryEntry(input: {
+  type: ShareInboxHistoryType
+  note?: string
+  fromStatus?: ShareInboxStatus
+  toStatus?: ShareInboxStatus
+  at?: string
+}): ShareInboxHistoryEntry {
+  const now = new Date().toISOString()
+  return {
+    id: generateHistoryId(),
+    type: input.type,
+    at: normalizeIso(input.at, now),
+    note: input.note?.trim() || undefined,
+    fromStatus: input.fromStatus,
+    toStatus: input.toStatus,
+  }
+}
+
+export function normalizeShareHistory(value: unknown, fallbackCreatedAt: string, status: ShareInboxStatus) {
+  if (!Array.isArray(value) || value.length === 0) {
+    return [
+      createShareHistoryEntry({
+        type: 'created',
+        at: fallbackCreatedAt,
+        toStatus: status,
+      }),
+    ]
+  }
+
+  const entries = value
+    .map((item) => {
+      if (!item || typeof item !== 'object') return null
+      const raw = item as Partial<ShareInboxHistoryEntry>
+      if (!isShareHistoryType(raw.type)) return null
+      return createShareHistoryEntry({
+        type: raw.type,
+        note: typeof raw.note === 'string' ? raw.note : undefined,
+        fromStatus: isShareInboxStatus(raw.fromStatus) ? raw.fromStatus : undefined,
+        toStatus: isShareInboxStatus(raw.toStatus) ? raw.toStatus : undefined,
+        at: raw.at,
+      })
+    })
+    .filter((entry): entry is ShareInboxHistoryEntry => Boolean(entry))
+
+  if (entries.length === 0) {
+    return [
+      createShareHistoryEntry({
+        type: 'created',
+        at: fallbackCreatedAt,
+        toStatus: status,
+      }),
+    ]
+  }
+
+  return entries.sort((left, right) => new Date(left.at).getTime() - new Date(right.at).getTime())
+}
+
+export function appendShareHistory(
+  history: ShareInboxHistoryEntry[] | undefined,
+  entryInput: {
+    type: ShareInboxHistoryType
+    note?: string
+    fromStatus?: ShareInboxStatus
+    toStatus?: ShareInboxStatus
+    at?: string
+  }
+) {
+  const base = Array.isArray(history) ? history : []
+  const nextEntry = createShareHistoryEntry(entryInput)
+  const next = [...base, nextEntry]
+  if (next.length <= 40) return next
+  return next.slice(next.length - 40)
 }
 
 export function inferShareTags(input: {

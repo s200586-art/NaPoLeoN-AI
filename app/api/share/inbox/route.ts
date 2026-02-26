@@ -9,8 +9,10 @@ import {
 } from '@/lib/share-inbox-store'
 import {
   SHARE_INBOX_STATUSES,
+  ShareInboxHistoryType,
   ShareInboxStatus,
   mergeShareTags,
+  isShareHistoryType,
   isShareInboxStatus,
   normalizeShareSource,
   normalizeShareTags,
@@ -525,6 +527,32 @@ export async function PATCH(req: NextRequest) {
     )
   }
 
+  let historyEntry:
+    | {
+        type: ShareInboxHistoryType
+        note?: string
+        fromStatus?: ShareInboxStatus
+        toStatus?: ShareInboxStatus
+      }
+    | undefined
+
+  const rawHistory = asRecord(data.historyEntry)
+  if (rawHistory && isShareHistoryType(rawHistory.type)) {
+    historyEntry = {
+      type: rawHistory.type,
+      note: typeof rawHistory.note === 'string' ? rawHistory.note : undefined,
+      fromStatus: isShareInboxStatus(rawHistory.fromStatus) ? rawHistory.fromStatus : undefined,
+      toStatus: isShareInboxStatus(rawHistory.toStatus) ? rawHistory.toStatus : undefined,
+    }
+  } else if (isShareHistoryType(data.action)) {
+    historyEntry = {
+      type: data.action,
+      note: typeof data.note === 'string' ? data.note : undefined,
+      fromStatus: isShareInboxStatus(data.fromStatus) ? data.fromStatus : undefined,
+      toStatus: isShareInboxStatus(data.toStatus) ? data.toStatus : undefined,
+    }
+  }
+
   const updates = {
     source: firstString(data.source) || undefined,
     title: typeof data.title === 'string' ? data.title : undefined,
@@ -533,6 +561,7 @@ export async function PATCH(req: NextRequest) {
     author: typeof data.author === 'string' ? data.author : undefined,
     tags: typeof data.tags !== 'undefined' ? parseTags(data.tags) : undefined,
     status: statusRaw as ShareInboxStatus | undefined,
+    historyEntry,
   }
 
   const item = await updateShareInboxItem(id, updates)

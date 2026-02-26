@@ -1,14 +1,17 @@
 import fs from 'node:fs/promises'
 import path from 'node:path'
 import {
+  appendShareHistory,
   CreateShareInboxItemInput,
   ShareInboxItem,
   ShareInboxStatus,
   UpdateShareInboxItemInput,
+  createShareHistoryEntry,
   deriveShareTitle,
   inferShareTags,
   isShareInboxStatus,
   mergeShareTags,
+  normalizeShareHistory,
   normalizeShareSource,
 } from '@/lib/share-inbox'
 
@@ -75,6 +78,7 @@ function normalizeItem(value: unknown): ShareInboxItem | null {
       })
     ),
     status: isShareInboxStatus(raw.status) ? raw.status : 'new',
+    history: normalizeShareHistory(raw.history, createdAt, isShareInboxStatus(raw.status) ? raw.status : 'new'),
     createdAt,
     updatedAt,
   }
@@ -138,6 +142,12 @@ export async function listShareInboxItems(status?: ShareInboxStatus) {
   return sorted.filter((item) => item.status === status)
 }
 
+export async function getShareInboxItemsByIds(ids: string[]) {
+  await ensureLoaded()
+  const wanted = new Set(ids)
+  return store.filter((item) => wanted.has(item.id))
+}
+
 export async function addShareInboxItem(input: CreateShareInboxItemInput) {
   await ensureLoaded()
 
@@ -163,6 +173,13 @@ export async function addShareInboxItem(input: CreateShareInboxItemInput) {
       })
     ),
     status: 'new',
+    history: [
+      createShareHistoryEntry({
+        type: 'created',
+        at: now,
+        toStatus: 'new',
+      }),
+    ],
     createdAt: now,
     updatedAt: now,
   }
@@ -195,6 +212,22 @@ export async function updateShareInboxItem(id: string, updates: UpdateShareInbox
       nextContent
     )
 
+    const nextStatus = isShareInboxStatus(updates.status) ? updates.status : item.status
+    let nextHistory = normalizeShareHistory(item.history, item.createdAt, item.status)
+
+    if (nextStatus !== item.status) {
+      nextHistory = appendShareHistory(nextHistory, {
+        type: 'status_changed',
+        fromStatus: item.status,
+        toStatus: nextStatus,
+        note: `Статус: ${item.status} → ${nextStatus}`,
+      })
+    }
+
+    if (updates.historyEntry) {
+      nextHistory = appendShareHistory(nextHistory, updates.historyEntry)
+    }
+
     const nextItem: ShareInboxItem = {
       ...item,
       source: updates.source ? normalizeShareSource(updates.source) : item.source,
@@ -213,7 +246,8 @@ export async function updateShareInboxItem(id: string, updates: UpdateShareInbox
             })
           )
         : item.tags,
-      status: isShareInboxStatus(updates.status) ? updates.status : item.status,
+      status: nextStatus,
+      history: nextHistory,
       updatedAt: now,
     }
 
