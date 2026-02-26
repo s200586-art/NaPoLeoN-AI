@@ -1,10 +1,10 @@
 'use client'
 
-import React from 'react'
+import React, { useMemo, useState } from 'react'
 import { AnimatePresence, motion } from 'framer-motion'
-import { ChevronRight, Pin, Trash2, X } from 'lucide-react'
+import { ChevronRight, Pin, SlidersHorizontal, Tags, Trash2, X } from 'lucide-react'
 import { Button } from '@/components/ui/Button'
-import { useAppStore } from '@/lib/store'
+import { PINNED_TAGS, useAppStore } from '@/lib/store'
 import { cn } from '@/lib/utils'
 
 interface PinnedBoardProps {
@@ -35,10 +35,12 @@ function previewText(text: string, max = 240) {
 }
 
 export function PinnedBoard({ className }: PinnedBoardProps) {
+  const [activeTag, setActiveTag] = useState<'all' | string>('all')
   const {
     pinnedBoardOpen,
     setPinnedBoardOpen,
     pinnedNotes,
+    togglePinnedTag,
     removePinnedMessage,
     clearPinnedMessages,
     chats,
@@ -62,10 +64,15 @@ export function PinnedBoard({ className }: PinnedBoardProps) {
     setViewMode('chat')
   }
 
+  const filteredNotes = useMemo(() => {
+    if (activeTag === 'all') return pinnedNotes
+    return pinnedNotes.filter((note) => note.tags?.includes(activeTag))
+  }, [activeTag, pinnedNotes])
+
   return (
     <motion.aside
       initial={false}
-      animate={{ width: pinnedBoardOpen ? 340 : 48 }}
+      animate={{ width: pinnedBoardOpen ? 380 : 48 }}
       transition={{ duration: 0.2, ease: 'easeInOut' }}
       className={cn(
         'relative hidden h-full min-h-0 shrink-0 flex-col overflow-hidden border-l border-border bg-card dark:bg-zinc-900/50 xl:flex',
@@ -126,6 +133,51 @@ export function PinnedBoard({ className }: PinnedBoardProps) {
       <AnimatePresence>
         {pinnedBoardOpen && (
           <motion.div
+            initial={{ opacity: 0, y: -4 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -4 }}
+            className="shrink-0 border-b border-border px-3 py-2"
+          >
+            <div className="mb-1 flex items-center gap-1.5 text-[10px] uppercase tracking-wide text-muted-foreground">
+              <SlidersHorizontal className="h-3.5 w-3.5" />
+              Фильтр
+            </div>
+            <div className="flex flex-wrap gap-1.5">
+              <button
+                type="button"
+                onClick={() => setActiveTag('all')}
+                className={cn(
+                  'rounded-full border px-2 py-1 text-[11px] transition-colors',
+                  activeTag === 'all'
+                    ? 'border-sky-500/60 bg-sky-500/15 text-sky-700 dark:text-sky-300'
+                    : 'border-border text-muted-foreground hover:bg-zinc-100 dark:hover:bg-zinc-800'
+                )}
+              >
+                Все
+              </button>
+              {PINNED_TAGS.map((tag) => (
+                <button
+                  key={tag}
+                  type="button"
+                  onClick={() => setActiveTag(tag)}
+                  className={cn(
+                    'rounded-full border px-2 py-1 text-[11px] transition-colors',
+                    activeTag === tag
+                      ? 'border-sky-500/60 bg-sky-500/15 text-sky-700 dark:text-sky-300'
+                      : 'border-border text-muted-foreground hover:bg-zinc-100 dark:hover:bg-zinc-800'
+                  )}
+                >
+                  {tag}
+                </button>
+              ))}
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      <AnimatePresence>
+        {pinnedBoardOpen && (
+          <motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
@@ -137,9 +189,15 @@ export function PinnedBoard({ className }: PinnedBoardProps) {
                 <p className="text-sm">Пока нет закрепов</p>
                 <p className="mt-1 text-xs">Нажми pin у сообщения в чате</p>
               </div>
+            ) : filteredNotes.length === 0 ? (
+              <div className="flex h-full flex-col items-center justify-center text-center text-muted-foreground">
+                <Tags className="mb-2 h-8 w-8 opacity-50" />
+                <p className="text-sm">Нет закрепов с тегом «{activeTag}»</p>
+                <p className="mt-1 text-xs">Выбери другой фильтр или добавь тег в карточке</p>
+              </div>
             ) : (
               <div className="space-y-2">
-                {pinnedNotes.map((note) => (
+                {filteredNotes.map((note) => (
                   <motion.div
                     key={note.id}
                     initial={{ opacity: 0, y: 8 }}
@@ -181,6 +239,47 @@ export function PinnedBoard({ className }: PinnedBoardProps) {
                     >
                       <p className="line-clamp-4 text-sm">{previewText(note.content, 260)}</p>
                     </button>
+
+                    <div className="mt-2 flex flex-wrap gap-1">
+                      {(note.tags || []).length > 0 ? (
+                        note.tags.map((tag) => (
+                          <button
+                            key={`${note.id}:${tag}`}
+                            type="button"
+                            onClick={() => togglePinnedTag(note.id, tag)}
+                            className="rounded-full border border-sky-500/40 bg-sky-500/10 px-2 py-0.5 text-[10px] text-sky-700 transition-colors hover:bg-sky-500/20 dark:text-sky-300"
+                            title="Убрать тег"
+                          >
+                            {tag}
+                          </button>
+                        ))
+                      ) : (
+                        <span className="text-[10px] text-muted-foreground">Без категории</span>
+                      )}
+                    </div>
+
+                    <div className="mt-1.5 flex flex-wrap gap-1">
+                      {PINNED_TAGS.map((tag) => {
+                        const selected = (note.tags || []).includes(tag)
+                        return (
+                          <button
+                            key={`${note.id}:toggle:${tag}`}
+                            type="button"
+                            onClick={() => togglePinnedTag(note.id, tag)}
+                            className={cn(
+                              'rounded-full border px-1.5 py-0.5 text-[10px] transition-colors',
+                              selected
+                                ? 'border-sky-500/50 bg-sky-500/15 text-sky-700 dark:text-sky-300'
+                                : 'border-border text-muted-foreground hover:bg-zinc-100 dark:hover:bg-zinc-800'
+                            )}
+                            title={selected ? 'Снять категорию' : 'Добавить категорию'}
+                          >
+                            {selected ? '✓ ' : '+ '}
+                            {tag}
+                          </button>
+                        )
+                      })}
+                    </div>
 
                     <div className="mt-2 flex items-center justify-between text-[10px] text-muted-foreground">
                       <span>{note.role === 'user' ? 'S' : 'N'}</span>

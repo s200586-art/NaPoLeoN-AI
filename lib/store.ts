@@ -37,6 +37,7 @@ export interface PinnedNote {
   messageId: string
   role: Message['role']
   content: string
+  tags: string[]
   timestamp: Date
   pinnedAt: Date
 }
@@ -57,6 +58,31 @@ export interface LogEntry {
 }
 
 const DEFAULT_SELECTED_MODEL = 'moonshotai/kimi-k2-instruct'
+export const PINNED_TAGS = [
+  'Важное',
+  'Задача',
+  'Идея',
+  'Код',
+  'Контент',
+  'Личное',
+] as const
+
+function inferPinnedTags(content: string) {
+  const text = content.toLowerCase()
+  const tags: string[] = []
+
+  if (/(важно|срочно|критич|приоритет)/i.test(text)) tags.push('Важное')
+  if (/(задач|todo|сделать|нужно|надо|план|этап)/i.test(text)) tags.push('Задача')
+  if (/(идея|гипотез|концепт|придум|вариант)/i.test(text)) tags.push('Идея')
+  if (/(код|bug|ошибк|fix|api|deploy|build|ts|js|next|refactor)/i.test(text)) tags.push('Код')
+  if (/(контент|пост|статья|текст|реклама|канал|письм|twitter|x )/i.test(text)) tags.push('Контент')
+
+  if (tags.length === 0) {
+    tags.push('Личное')
+  }
+
+  return Array.from(new Set(tags)).slice(0, 3)
+}
 
 interface AppState {
   // Theme
@@ -95,6 +121,7 @@ interface AppState {
   updateMessage: (chatId: string, messageId: string, content: string, isStreaming?: boolean) => void
   pinnedNotes: PinnedNote[]
   togglePinnedMessage: (chatId: string, message: Message) => void
+  togglePinnedTag: (id: string, tag: string) => void
   removePinnedMessage: (id: string) => void
   clearPinnedMessages: () => void
 
@@ -278,6 +305,7 @@ export const useAppStore = create<AppState>()(
             messageId: message.id,
             role: message.role,
             content,
+            tags: inferPinnedTags(content),
             timestamp: new Date(message.timestamp),
             pinnedAt: new Date(),
           }
@@ -285,6 +313,31 @@ export const useAppStore = create<AppState>()(
           return {
             pinnedNotes: [note, ...state.pinnedNotes].slice(0, 120),
             pinnedBoardOpen: true,
+          }
+        }),
+      togglePinnedTag: (id, tag) =>
+        set((state) => {
+          if (!PINNED_TAGS.includes(tag as (typeof PINNED_TAGS)[number])) {
+            return {}
+          }
+
+          const nextPinnedNotes = state.pinnedNotes.map((note) => {
+            if (note.id !== id) return note
+
+            const currentTags = Array.isArray(note.tags) ? note.tags : []
+            const hasTag = currentTags.includes(tag)
+            const nextTags = hasTag
+              ? currentTags.filter((item) => item !== tag)
+              : [...currentTags, tag].slice(0, 4)
+
+            return {
+              ...note,
+              tags: nextTags,
+            }
+          })
+
+          return {
+            pinnedNotes: nextPinnedNotes,
           }
         }),
       removePinnedMessage: (id) =>
@@ -347,6 +400,9 @@ export const useAppStore = create<AppState>()(
         const rawPinnedNotes = Array.isArray(typedState.pinnedNotes) ? typedState.pinnedNotes : []
         const normalizedPinnedNotes = rawPinnedNotes.map((note) => ({
           ...note,
+          tags: Array.isArray(note.tags)
+            ? note.tags.filter((tag): tag is string => typeof tag === 'string')
+            : inferPinnedTags(String(note.content || '')),
           timestamp: new Date(note.timestamp),
           pinnedAt: new Date(note.pinnedAt),
         }))
