@@ -84,11 +84,17 @@ npm run dev
 - API endpoint: `POST /api/share/inbox`.
 - Для внешних сервисов используйте `Bearer NAPOLEON_SHARE_TOKEN` (или header `x-share-token`).
 - Поддерживаются поля `source`, `title`, `content`/`text`/`message`, `url`, `author`, `tags`.
+- Дополнительно распознаются provider-форматы:
+  - ChatGPT (`conversation/messages`, `mapping`),
+  - Claude (`chat_messages`),
+  - Gemini (`contents/parts`).
 - Из UI можно помечать карточки статусами (`Новые`/`В работе`/`Готово`), удалять и отправлять карточку в чат.
+- Для новых записей действует автокатегоризация тегов (источник + ключевые слова: `код`, `задача`, `идея`, `контент`, `важно`, `ссылка`).
 
 ### Мини-страница share
 - Доступна по адресу `/share`.
 - Есть пресеты источников (`ChatGPT / Claude / Gemini / Kimi / MiniMax / Web / Manual`).
+- Есть готовые payload-шаблоны JSON для `ChatGPT / Claude / Gemini`.
 - Поддерживает авто-заполнение через query:
   - `source`, `title`, `content` (или `text` / `message`), `url`, `author`, `tags`, `token`.
 - Из страницы можно скопировать:

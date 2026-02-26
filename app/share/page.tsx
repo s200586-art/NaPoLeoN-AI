@@ -47,6 +47,19 @@ interface SourcePreset {
   accentClassName: string
 }
 
+interface PayloadTemplate {
+  id: 'chatgpt' | 'claude' | 'gemini'
+  label: string
+  description: string
+  build: (values: {
+    title: string
+    content: string
+    url: string
+    author: string
+    tags: string[]
+  }) => Record<string, unknown>
+}
+
 const PRESETS: SourcePreset[] = [
   {
     id: 'chatgpt',
@@ -100,6 +113,60 @@ const PRESETS: SourcePreset[] = [
 ]
 
 const PRESET_IDS = new Set(PRESETS.map((preset) => preset.id))
+
+const PAYLOAD_TEMPLATES: PayloadTemplate[] = [
+  {
+    id: 'chatgpt',
+    label: 'ChatGPT',
+    description: 'conversation + messages',
+    build: ({ title, content, url, author, tags }) => ({
+      source: 'chatgpt',
+      title: title || 'ChatGPT share',
+      conversation: {
+        title: title || 'ChatGPT share',
+        url: url || 'https://chatgpt.com/share/xxxx',
+        messages: [
+          { role: 'user', content: 'Сформируй план запуска' },
+          { role: 'assistant', content: content || 'План запуска по этапам...' },
+        ],
+      },
+      author: author || undefined,
+      tags,
+    }),
+  },
+  {
+    id: 'claude',
+    label: 'Claude',
+    description: 'chat_messages',
+    build: ({ title, content, url, author, tags }) => ({
+      provider: 'claude',
+      title: title || 'Claude share',
+      url: url || 'https://claude.ai/chat/xxxx',
+      chat_messages: [
+        { sender: 'human', text: 'Что улучшить в продукте?' },
+        { sender: 'assistant', text: content || 'Три улучшения: ...' },
+      ],
+      author: author || undefined,
+      tags,
+    }),
+  },
+  {
+    id: 'gemini',
+    label: 'Gemini',
+    description: 'contents/parts',
+    build: ({ title, content, url, author, tags }) => ({
+      provider: 'gemini',
+      title: title || 'Gemini share',
+      url: url || 'https://gemini.google.com/app/xxxx',
+      contents: [
+        { role: 'user', parts: [{ text: 'Собери summary диалога' }] },
+        { role: 'model', parts: [{ text: content || 'Краткое summary: ...' }] },
+      ],
+      author: author || undefined,
+      tags,
+    }),
+  },
+]
 
 const INITIAL_DRAFT: ShareDraft = {
   token: '',
@@ -235,6 +302,17 @@ export default function SharePage() {
 
   const canSubmit = Boolean(draft.content.trim() || draft.url.trim())
 
+  const templatePayloadValues = useMemo(
+    () => ({
+      title: draft.title.trim(),
+      content: draft.content.trim(),
+      url: draft.url.trim(),
+      author: draft.author.trim(),
+      tags: parseTagsString(draft.tags),
+    }),
+    [draft.title, draft.content, draft.url, draft.author, draft.tags]
+  )
+
   const copyText = async (key: string, value: string) => {
     try {
       await navigator.clipboard.writeText(value)
@@ -250,6 +328,17 @@ export default function SharePage() {
       ...current,
       source: preset.id,
       tags: mergeTags(current.tags, preset.defaultTags),
+    }))
+  }
+
+  const applyPayloadTemplate = (templateId: PayloadTemplate['id']) => {
+    const preset = PRESETS.find((item) => item.id === templateId)
+    setDraft((current) => ({
+      ...current,
+      source: templateId,
+      title: current.title || `${templateId.toUpperCase()} share`,
+      content: current.content || 'Вставьте ключевой фрагмент диалога...',
+      tags: mergeTags(current.tags, preset?.defaultTags || [templateId]),
     }))
   }
 
@@ -480,6 +569,46 @@ export default function SharePage() {
               </div>
             </div>
           )}
+
+          <section className="mb-5 rounded-xl border border-border bg-background/80 p-4 dark:bg-zinc-950/20">
+            <div className="mb-2 flex items-center gap-2">
+              <Send className="h-4 w-4 text-sky-500" />
+              <p className="text-sm font-medium">Готовые payload-шаблоны</p>
+            </div>
+            <p className="mb-3 text-xs text-muted-foreground">
+              Для кнопок share из ChatGPT / Claude / Gemini можно использовать готовые JSON структуры.
+            </p>
+            <div className="grid gap-3 sm:grid-cols-3">
+              {PAYLOAD_TEMPLATES.map((template) => {
+                const json = JSON.stringify(template.build(templatePayloadValues), null, 2)
+                return (
+                  <div
+                    key={template.id}
+                    className="rounded-lg border border-border bg-card/70 p-3 dark:bg-zinc-900/30"
+                  >
+                    <p className="text-sm font-medium">{template.label}</p>
+                    <p className="mb-2 text-[11px] text-muted-foreground">{template.description}</p>
+                    <div className="flex flex-wrap gap-2">
+                      <button
+                        type="button"
+                        onClick={() => applyPayloadTemplate(template.id)}
+                        className="rounded-md border border-sky-500/40 bg-sky-500/10 px-2 py-1 text-[11px] text-sky-700 transition-colors hover:bg-sky-500/20 dark:text-sky-300"
+                      >
+                        Заполнить форму
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => void copyText(`payload-${template.id}`, json)}
+                        className="rounded-md border border-zinc-300/70 px-2 py-1 text-[11px] text-zinc-700 transition-colors hover:bg-zinc-100 dark:border-zinc-700 dark:text-zinc-300 dark:hover:bg-zinc-800"
+                      >
+                        {copied === `payload-${template.id}` ? 'JSON скопирован' : 'Копировать JSON'}
+                      </button>
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
+          </section>
 
           <section className="rounded-xl border border-border bg-background/80 p-4 dark:bg-zinc-950/20">
             <div className="mb-2 flex items-center gap-2">

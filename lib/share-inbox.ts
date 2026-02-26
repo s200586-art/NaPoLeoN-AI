@@ -37,9 +37,23 @@ export interface UpdateShareInboxItemInput {
 const SOURCE_ALIASES: Record<string, string> = {
   gpt: 'chatgpt',
   'chat-gpt': 'chatgpt',
+  'gpt-4': 'chatgpt',
+  'gpt4': 'chatgpt',
   openai: 'chatgpt',
+  chatgpt: 'chatgpt',
+  claudeai: 'claude',
+  'claude.ai': 'claude',
   anthropic: 'claude',
+  claude: 'claude',
+  bard: 'gemini',
+  'google-gemini': 'gemini',
   google: 'gemini',
+  gemini: 'gemini',
+  moonshot: 'kimi',
+  moonshotai: 'kimi',
+  kimi: 'kimi',
+  minimaxai: 'minimax',
+  minimax: 'minimax',
 }
 
 export function isShareInboxStatus(value: unknown): value is ShareInboxStatus {
@@ -63,6 +77,42 @@ export function normalizeShareTags(value: unknown): string[] {
         .filter(Boolean)
     )
   ).slice(0, 8)
+}
+
+export function mergeShareTags(...groups: Array<string[] | undefined>) {
+  const merged: string[] = []
+  for (const group of groups) {
+    if (!Array.isArray(group)) continue
+    merged.push(...group)
+  }
+  return normalizeShareTags(merged)
+}
+
+export function inferShareTags(input: {
+  source: string
+  title?: string
+  content: string
+  url?: string
+}) {
+  const source = normalizeShareSource(input.source)
+  const text = `${input.title || ''}\n${input.content}`.toLowerCase()
+  const tags: string[] = []
+
+  if (source && source !== 'manual') {
+    tags.push(source)
+  }
+  if (input.url) {
+    tags.push('ссылка')
+  }
+
+  if (/(важно|срочно|critical|urgent|asap|приоритет)/i.test(text)) tags.push('важно')
+  if (/(задач|todo|сделать|надо|нужно|план|roadmap|этап)/i.test(text)) tags.push('задача')
+  if (/(идея|гипотез|концепт|вариант|brainstorm)/i.test(text)) tags.push('идея')
+  if (/(код|bug|fix|api|deploy|build|рефактор|ошибк|ts|js|next)/i.test(text)) tags.push('код')
+  if (/(контент|пост|статья|канал|twitter|youtube|video|reel|shorts)/i.test(text)) tags.push('контент')
+  if (/(продаж|лид|клиент|бизнес|выручк|прибыл|маржин)/i.test(text)) tags.push('бизнес')
+
+  return mergeShareTags(tags)
 }
 
 export function deriveShareTitle(title: string | undefined, content: string): string {

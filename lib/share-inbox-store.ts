@@ -6,9 +6,10 @@ import {
   ShareInboxStatus,
   UpdateShareInboxItemInput,
   deriveShareTitle,
+  inferShareTags,
   isShareInboxStatus,
+  mergeShareTags,
   normalizeShareSource,
-  normalizeShareTags,
 } from '@/lib/share-inbox'
 
 const IS_SERVERLESS_RUNTIME = Boolean(
@@ -64,7 +65,15 @@ function normalizeItem(value: unknown): ShareInboxItem | null {
     content: content.slice(0, MAX_CONTENT_LENGTH),
     url: typeof raw.url === 'string' ? raw.url.trim() || undefined : undefined,
     author: typeof raw.author === 'string' ? raw.author.trim() || undefined : undefined,
-    tags: normalizeShareTags(raw.tags),
+    tags: mergeShareTags(
+      Array.isArray(raw.tags) ? raw.tags.filter((tag): tag is string => typeof tag === 'string') : undefined,
+      inferShareTags({
+        source: normalizeShareSource(raw.source),
+        title: typeof raw.title === 'string' ? raw.title : undefined,
+        content,
+        url: typeof raw.url === 'string' ? raw.url.trim() || undefined : undefined,
+      })
+    ),
     status: isShareInboxStatus(raw.status) ? raw.status : 'new',
     createdAt,
     updatedAt,
@@ -133,15 +142,26 @@ export async function addShareInboxItem(input: CreateShareInboxItemInput) {
   await ensureLoaded()
 
   const now = new Date().toISOString()
+  const source = normalizeShareSource(input.source)
   const content = input.content.trim().slice(0, MAX_CONTENT_LENGTH)
+  const title = deriveShareTitle(input.title, content)
+  const url = input.url?.trim() || undefined
   const item: ShareInboxItem = {
     id: generateId(),
-    source: normalizeShareSource(input.source),
-    title: deriveShareTitle(input.title, content),
+    source,
+    title,
     content,
-    url: input.url?.trim() || undefined,
+    url,
     author: input.author?.trim() || undefined,
-    tags: normalizeShareTags(input.tags),
+    tags: mergeShareTags(
+      input.tags,
+      inferShareTags({
+        source,
+        title,
+        content,
+        url,
+      })
+    ),
     status: 'new',
     createdAt: now,
     updatedAt: now,
@@ -182,7 +202,17 @@ export async function updateShareInboxItem(id: string, updates: UpdateShareInbox
       content: nextContent,
       url: typeof updates.url === 'string' ? updates.url.trim() || undefined : item.url,
       author: typeof updates.author === 'string' ? updates.author.trim() || undefined : item.author,
-      tags: updates.tags ? normalizeShareTags(updates.tags) : item.tags,
+      tags: updates.tags
+        ? mergeShareTags(
+            updates.tags,
+            inferShareTags({
+              source: updates.source ? normalizeShareSource(updates.source) : item.source,
+              title: nextTitle,
+              content: nextContent,
+              url: typeof updates.url === 'string' ? updates.url.trim() || undefined : item.url,
+            })
+          )
+        : item.tags,
       status: isShareInboxStatus(updates.status) ? updates.status : item.status,
       updatedAt: now,
     }
