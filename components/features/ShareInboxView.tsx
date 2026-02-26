@@ -277,20 +277,31 @@ export function ShareInboxView() {
             {response ? `Обновлено ${formatRelativeTime(response.generatedAt)}` : 'Данные не загружены'}
           </p>
         </div>
-        <button
-          type="button"
-          onClick={() => void fetchInbox(true)}
-          disabled={isLoading || isRefreshing}
-          className={cn(
-            'inline-flex h-9 items-center gap-2 rounded-lg border px-3 text-sm transition-colors',
-            isLoading || isRefreshing
-              ? 'cursor-not-allowed border-zinc-300 text-zinc-400 dark:border-zinc-700 dark:text-zinc-500'
-              : 'border-indigo-300/70 text-indigo-700 hover:bg-indigo-50 dark:border-indigo-700/60 dark:text-indigo-300 dark:hover:bg-indigo-900/20'
-          )}
-        >
-          <RefreshCw className={cn('h-4 w-4', (isLoading || isRefreshing) && 'animate-spin')} />
-          Обновить
-        </button>
+        <div className="flex items-center gap-2">
+          <a
+            href="/share"
+            target="_blank"
+            rel="noreferrer"
+            className="inline-flex h-9 items-center gap-2 rounded-lg border border-cyan-300/70 px-3 text-sm text-cyan-700 transition-colors hover:bg-cyan-50 dark:border-cyan-700/60 dark:text-cyan-300 dark:hover:bg-cyan-900/20"
+          >
+            <Send className="h-4 w-4" />
+            Мини-форма share
+          </a>
+          <button
+            type="button"
+            onClick={() => void fetchInbox(true)}
+            disabled={isLoading || isRefreshing}
+            className={cn(
+              'inline-flex h-9 items-center gap-2 rounded-lg border px-3 text-sm transition-colors',
+              isLoading || isRefreshing
+                ? 'cursor-not-allowed border-zinc-300 text-zinc-400 dark:border-zinc-700 dark:text-zinc-500'
+                : 'border-indigo-300/70 text-indigo-700 hover:bg-indigo-50 dark:border-indigo-700/60 dark:text-indigo-300 dark:hover:bg-indigo-900/20'
+            )}
+          >
+            <RefreshCw className={cn('h-4 w-4', (isLoading || isRefreshing) && 'animate-spin')} />
+            Обновить
+          </button>
+        </div>
       </div>
 
       <motion.section

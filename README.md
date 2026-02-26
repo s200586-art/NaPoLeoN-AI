@@ -68,6 +68,15 @@ npm run dev
 - Поддерживаются поля `source`, `title`, `content`/`text`/`message`, `url`, `author`, `tags`.
 - Из UI можно помечать карточки статусами (`Новые`/`В работе`/`Готово`), удалять и отправлять карточку в чат.
 
+### Мини-страница share
+- Доступна по адресу `/share`.
+- Есть пресеты источников (`ChatGPT / Claude / Gemini / Kimi / MiniMax / Web / Manual`).
+- Поддерживает авто-заполнение через query:
+  - `source`, `title`, `content` (или `text` / `message`), `url`, `author`, `tags`, `token`.
+- Из страницы можно скопировать:
+  - quick-link на форму;
+  - bookmarklet-кнопку для браузера (берёт `title/url/выделенный текст` текущей страницы и открывает `/share`).
+
 ## PWA (Android)
 - Приложение поддерживает установку как PWA через браузер Chrome на Android.
 - Добавлены:
