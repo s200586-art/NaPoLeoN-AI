@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation'
 import { useAppStore } from '@/lib/store'
 import { Sidebar } from '@/components/layout/Sidebar'
 import { LivePanel } from '@/components/layout/LivePanel'
+import { MobileHeader } from '@/components/layout/MobileHeader'
 import { ChatCanvas } from '@/components/chat/ChatCanvas'
 import { MultiAgentView } from '@/components/features/MultiAgentView'
 import { DashboardView } from '@/components/features/DashboardView'
@@ -87,18 +88,21 @@ export default function Home() {
 
   return (
     <div className="flex h-[100dvh] min-h-0 overflow-hidden bg-background">
-      {/* Left Sidebar */}
-      <Sidebar />
+      {/* Left Sidebar (desktop) */}
+      <Sidebar className="hidden lg:flex" />
 
       {/* Main Content */}
-      <main className="relative min-h-0 min-w-0 flex-1 overflow-hidden">
-        {renderContent()}
-      </main>
+      <div className="flex min-h-0 min-w-0 flex-1 flex-col">
+        <MobileHeader className="lg:hidden" />
+        <main className="relative min-h-0 min-w-0 flex-1 overflow-hidden">
+          {renderContent()}
+        </main>
+      </div>
 
       <PinnedBoard />
 
-      {/* Right Panel */}
-      <LivePanel />
+      {/* Right Panel (desktop) */}
+      <LivePanel className="hidden lg:flex" />
 
       <PWAInstallPrompt />
     </div>
